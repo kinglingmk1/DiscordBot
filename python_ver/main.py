@@ -31,9 +31,9 @@ def getMP3(input):
     elif os.path.exists(m4a_path):
         return m4a_path
     else:
-        files = glob.glob(os.path.join(music_dir, '*.mp3')) + glob.glob(os.path.join(music_dir, '*.flac') )+ glob.glob(os.path.join(music_dir, '*.m4a'))
+        files = glob.glob(os.path.join(music_dir, '*.mp3')) + glob.glob(os.path.join(music_dir, '*.flac') ) + glob.glob(os.path.join(music_dir, '*.m4a'))
         for file in files:
-            if os.path.basename(file).startswith(input):
+            if input in os.path.basename(file) :
                 return file
     return input
 
@@ -98,6 +98,47 @@ def clean_filename(filename):
     filename = filename.strip()  # 移除首尾空白
     return filename
 
+def decode_subprocess_output(output_bytes):
+    """嘗試使用不同編碼解碼subprocess輸出，優先處理日文編碼"""
+    # 優先嘗試日文編碼，特別是Shift_JIS和CP932
+    encodings = ['shift_jis', 'cp932', 'utf-8', 'euc-jp', 'iso-2022-jp', 'cp1252', 'cp437', 'gbk', 'big5']
+    
+    for encoding in encodings:
+        try:
+            decoded = output_bytes.decode(encoding).strip()
+            
+            # 嘗試處理Unicode轉義序列
+            try:
+                # 如果包含\u轉義序列，嘗試解碼
+                if '\\u' in decoded:
+                    decoded = decoded.encode().decode('unicode_escape')
+            except:
+                pass  # 如果Unicode解碼失敗，繼續使用原始解碼結果
+            
+            # 檢查是否包含日文字符來驗證解碼是否正確
+            if any('\u3040' <= char <= '\u309F' or  # Hiragana
+                   '\u30A0' <= char <= '\u30FF' or  # Katakana  
+                   '\u4E00' <= char <= '\u9FAF'     # Kanji
+                   for char in decoded):
+                return decoded
+            # 如果沒有日文字符但解碼成功，也返回結果
+            elif encoding in ['utf-8', 'shift_jis', 'cp932']:
+                return decoded
+        except UnicodeDecodeError:
+            continue
+    
+    # 如果所有編碼都失敗，使用shift_jis並忽略錯誤
+    result = output_bytes.decode('shift_jis', errors='ignore').strip()
+    
+    # 最後嘗試Unicode轉義解碼
+    try:
+        if '\\u' in result:
+            result = result.encode().decode('unicode_escape')
+    except:
+        pass
+    
+    return result
+
 @client.command()
 async def yt(ctx, url: str):
     if ctx.author.voice is None:
@@ -111,13 +152,19 @@ async def yt(ctx, url: str):
         return
     if url.__contains__("list="): 
         try:
-            result = subprocess.run([
-            mainPath() + '/yt-dlp.exe',
-            '--get-title',
-            '--flat-playlist',
-            url
-            ], capture_output=True, text=True, check=True)
-            video_title = result.stdout.strip()
+            process = await asyncio.create_subprocess_exec(
+                mainPath() + '/yt-dlp.exe',
+                '--get-title',
+                '--flat-playlist',
+                url,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, 'yt-dlp')
+            
+            video_title = decode_subprocess_output(stdout)
             #use array to store the title
             video_titles = video_title.split('\n')
             titleName = ""
@@ -150,13 +197,18 @@ async def yt(ctx, url: str):
                     vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
                 else:
                     # 下載影片
-                    subprocess.run([
+                    process = await asyncio.create_subprocess_exec(
                         mainPath() + '/yt-dlp.exe',
                         '-o', mainPath() + '/music/' + clean + '.%(ext)s',
                         '-f', 'm4a',
                         url,
-                        '--playlist-items', str(i+1)
-                    ], check=True)
+                        '--playlist-items', str(i+1),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await process.communicate()
+                    if process.returncode != 0:
+                        raise subprocess.CalledProcessError(process.returncode, 'yt-dlp')
                     
                     await ctx.send(f"> Now Playing: {title}")
                     vc = ctx.guild.voice_client
@@ -201,12 +253,17 @@ async def yt(ctx, url: str):
             return
 
         # 下載影片
-        subprocess.run([
+        process = await asyncio.create_subprocess_exec(
             mainPath() + '/yt-dlp.exe',
             '-o', mainPath() + '/music/' + clean + '.%(ext)s',
             '-f', 'm4a',
-            url
-        ], check=True)
+            url,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, 'yt-dlp')
         await ctx.send(f"> Now playing: {video_title}")
         vc = ctx.guild.voice_client
         #check is playing
@@ -218,7 +275,7 @@ async def yt(ctx, url: str):
         
     except subprocess.CalledProcessError:
         await ctx.send("> Failed to play")
-        print("> Download failed!")
+        print("> Download failed! because" + stderr.decode('utf-8'))
     except Exception as e:
         print(f"> An error occurred: {e}")
         await ctx.send(f"> How the fuck u make this???? : {e}")
@@ -234,7 +291,8 @@ async def leave(ctx):
         await ctx.send("I'm not in a voice channel.")
 
 @client.command()
-async def play(ctx, arg):
+async def play(ctx, *, arg):
+    # Accept the entire argument, including spaces
     if ctx.author.voice:
         channel = ctx.author.voice.channel
         if ctx.voice_client is None:
@@ -243,8 +301,11 @@ async def play(ctx, arg):
         return
 
     vc = ctx.guild.voice_client
-    vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(),source=intgrated(arg),options='-filter:a "volume=0.1"'))
-    await ctx.channel.send("> Now playing: " + removefileName(removePath(getMP3(arg))))
+    # Remove quotes, clean up filename
+    arg_clean = arg.strip('"')
+    vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(arg_clean), options='-filter:a "volume=0.1"'))
+    await ctx.channel.send("> Now playing: " + removefileName(removePath(getMP3(arg_clean)))
+    )
 @client.command()
 async def getPermission(ctx):
     # Display a button on the text channel to get permission and assign a role
@@ -358,7 +419,15 @@ async def list(ctx):
     names = [os.path.splitext(f)[0] for f in files]
     if names:
         numbered = [f"{i+1}. {name}" for i, name in enumerate(names)]
-        await ctx.send("```Available music files:\n" + "\n".join(numbered) + "```")
+        #send as txt file
+        if len(numbered) >= 1950:
+            with open("music_list.txt", "w", encoding="utf-8") as f:
+                f.write("\n".join(numbered))
+            await ctx.send(file=discord.File("music_list.txt"))
+            # Clean up the file after sending
+            os.remove("music_list.txt")
+        else:
+            await ctx.send("```Song List:\n" + "\n".join(numbered)+ "```")
     else:
         await ctx.send("No music files found.")
 
