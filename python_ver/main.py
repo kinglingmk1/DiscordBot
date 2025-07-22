@@ -273,9 +273,13 @@ async def yt(ctx, url: str):
             await asyncio.sleep(1)
         vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(),source=intgrated(clean),options='-filter:a "volume=0.1"'))
         
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
         await ctx.send("> Failed to play")
-        print("> Download failed! because" + stderr.decode('utf-8'))
+        # 檢查是否有 stderr 輸出
+        if hasattr(e, 'stderr') and e.stderr:
+            print(f"> Download failed! because: {e.stderr}")
+        else:
+            print(f"> Download failed! Return code: {e.returncode}")
     except Exception as e:
         print(f"> An error occurred: {e}")
         await ctx.send(f"> How the fuck u make this???? : {e}")
