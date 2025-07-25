@@ -2,9 +2,15 @@
 
 Java Version
 
-OpenJDK 21.0.2.0.13-2
+OpenJDK 21.0.2.0.13-2 (Not support anymore)
 
 https://jdk.java.net/archive/
+
+Python Version
+
+Python 3.12.10
+
+Python Package -- see <a href="https://github.com/kinglingmk1/DiscordBot/blob/main/requirements.txt">requirements.txt</a>
 
 Photo Reference:
 
