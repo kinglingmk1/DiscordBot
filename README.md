@@ -20,8 +20,7 @@ https://ave-mujica-images.pages.dev/
 
 This project using <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> and <a href="https://github.com/BtbN/FFmpeg-Builds">ffmpeg-lgpl</a>
 
-Using this project means you agree the below projects license
-License:<br>
-<a href="https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE">yt-dlp</a>
-
-<a href="https://github.com/BtbN/FFmpeg-Builds/blob/master/LICENSE">BtbN - FFmpeg-Builds</a>
+<p>Using this project means you agree the below projects license</p>
+<p>License:</p>
+<p><a href="https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE">yt-dlp</a></p>
+<p><a href="https://github.com/BtbN/FFmpeg-Builds/blob/master/LICENSE">BtbN - FFmpeg-Builds</a></p>
