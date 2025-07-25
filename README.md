@@ -20,7 +20,7 @@ https://ave-mujica-images.pages.dev/
 
 This project using <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> and <a href="https://github.com/BtbN/FFmpeg-Builds">ffmpeg-lgpl</a>
 
-License:
+License:<br>
 <a href="https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE">yt-dlp</a>
 
 <a href="https://github.com/BtbN/FFmpeg-Builds/blob/master/LICENSE">BtbN - FFmpeg-Builds</a>
