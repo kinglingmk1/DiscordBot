@@ -1,6 +1,6 @@
 <h1>Continue GO Discord Bot</h1>
 
-Java Version
+Java Version (Not support anymore)
 
 OpenJDK 21.0.2.0.13-2
 
