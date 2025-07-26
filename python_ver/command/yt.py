@@ -147,8 +147,10 @@ async def _play_audio(ctx: commands.Context, display_title: str):
             ctx, f"> Error during playback: {e}", f"_play_audio error: {e}"
         )
 
+async def _download_audio(url: str, title: str = None):
+    return await asyncio.to_thread(_download_audio_block, url, title)
 
-def _download_audio(url: str, title: str = None):
+def _download_audio_block(url: str, title: str = None):
     """Downloads a video or playlist item."""
 
     ydl_opts = {
@@ -219,7 +221,7 @@ async def _handle_playlist(ctx: commands.Context, url: str):
             ):
                 print(f"File already exists: {title}")
                 continue
-            _download_audio(url, title)
+            await _download_audio(url, title)
 
             # Play the audio
             await _play_audio(ctx, title)
@@ -247,7 +249,7 @@ async def _handle_single_video(ctx: commands.Context, url: str, ytdlp_executable
             os.path.exists(os.path.join(getMP3Path(), f"{title}.{ext}"))
             for ext in ["mp3", "flac", "m4a"]
         ):
-            _download_audio(url, title)
+            await _download_audio(url, title)
 
         # 5. Play the Audio
         await _play_audio(ctx, video_title, video_title)
