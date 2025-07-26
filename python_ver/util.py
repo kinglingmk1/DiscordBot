@@ -22,7 +22,7 @@ def getIMGPath():
 
 def intgrated(input_path):
     """Combine MP3 path with the cleaned audio path."""
-    return os.path.join(getMP3Path(), removePath(getAudioPath(input_path)))
+    return os.path.join(getMP3Path(), input_path)
 
 
 def clean_filename(filename):
