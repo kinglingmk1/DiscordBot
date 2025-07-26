@@ -231,7 +231,7 @@ async def _handle_playlist(ctx: commands.Context, url: str):
         )
 
 
-async def _handle_single_video(ctx: commands.Context, url: str, ytdlp_executable: str):
+async def _handle_single_video(ctx: commands.Context, url: str):
     """Handles the logic for playing a single YouTube video."""
     try:
         # 1. Get Video Title
