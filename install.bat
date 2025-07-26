@@ -1,4 +1,13 @@
 @echo off
+
+echo Installing this script means you agree to all of the license terms of the software it installs.
+echo Do you agree to install the software? (y/n)
+set /p install_choice=
+if /i "%install_choice%" neq "y" (
+    echo Installation aborted.
+    exit /b 0
+)
+
 echo Checking yt-dlp.exe exists...
 set yt_dlp_url=https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe
 if exist "./python_ver/yt-dlp.exe" (

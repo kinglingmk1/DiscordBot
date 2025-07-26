@@ -34,7 +34,13 @@ install_ffmpeg_static() {
     cd ..
     rm -rf ./temp_ffmpeg
 }
-
+echo "Install this script means you agree to all of the license terms of the software it installs."
+echo "Do you agree to install the software? (y/n)"
+read -r install_choice
+if [[ "$install_choice" != "y" && "$install_choice" != "Y" ]]; then
+    echo "Installation aborted."
+    exit 0
+fi
 echo "Checking yt-dlp exists..."
 yt_dlp_url="https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
 
@@ -42,6 +48,12 @@ if [ -f "./python_ver/yt-dlp" ]; then
     echo "yt-dlp already exists in python_ver directory."
 else
     echo "yt-dlp does not exist, proceeding with download."
+    echo "Do you agree to install yt-dlp? (y/n)"
+    read -r install_yt_dlp_choice
+    if [[ "$install_yt_dlp_choice" != "y" && "$install_yt_dlp_choice" != "Y" ]]; then
+        echo "Skipping yt-dlp installation. You may need to install it manually."
+        exit 0
+    fi
     echo "Installing yt-dlp"
     curl -L -o "./python_ver/yt-dlp" "$yt_dlp_url"
     if [ $? -ne 0 ]; then
@@ -58,6 +70,15 @@ if [ -f "./python_ver/ffmpeg" ]; then
     echo "ffmpeg already exists in python_ver directory."
 else
     echo "ffmpeg does not exist, proceeding with download."
+    echo "Do you agree to install ffmpeg static build? (y/n)"
+    read -r install_ffmpeg_choice
+    if [[ "$install_ffmpeg_choice" != "y" && "$install_ffmpeg_choice" != "Y" ]]; then
+        echo "Skipping ffmpeg installation. You may need to install it manually."
+        echo "Cleaning up..."
+        rm -f "./python_ver/yt-dlp"
+        echo "Installation aborted."
+        exit 0
+    fi
     echo "Installing ffmpeg static build..."
     install_ffmpeg_static
 fi
@@ -79,17 +100,24 @@ fi
 
 # Activate venv and install requirements
 source "$VENV_DIR/bin/activate"
-echo "Upgrading pip in venv..."
-pip install --upgrade pip
-if [ $? -ne 0 ]; then
-    echo "Failed to upgrade pip in venv. Continuing anyway..."
+echo "Do you want to check and upgrade pip in the virtual environment? (y/n)"
+read -r upgrade_pip_choice
+if [[ "$upgrade_pip_choice" == "y" || "$upgrade_pip_choice" == "Y" ]]; then
+    echo "Upgrading pip in venv..."
+    pip install --upgrade pip
+    if [ $? -ne 0 ]; then
+        echo "Failed to upgrade pip in venv. Continuing anyway..."
+    fi
 fi
 
-echo "Installing requirements in venv..."
-pip install -r ./requirements.txt
-if [ $? -ne 0 ]; then
-    echo "Failed to install Python packages in venv. Please check requirements.txt."
-    deactivate
+echo "Do you want to install requirements from requirements.txt? (y/n)"
+read -r install_requirements_choice
+if [[ "$install_requirements_choice" == "y" || "$install_requirements_choice" == "Y" ]]; then
+    echo "Installing requirements in venv..."
+    pip install -r ./requirements.txt
+    if [ $? -ne 0 ]; then
+        echo "Failed to install Python packages in venv. Please check requirements.txt."
+        deactivate
     exit 1
 fi
 
