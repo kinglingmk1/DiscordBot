@@ -1,3 +1,4 @@
+import io
 import logging
 import os
 import asyncio
@@ -69,8 +70,10 @@ async def _send_error(ctx: commands.Context, message: str, error_details: str = 
     if error_details:
         logging.error(error_details)  # Log details server-side
 
+
 async def _get_video_title(url: str) -> str | None:
     return await asyncio.to_thread(_get_video_title_block, url)
+
 
 def _get_video_title_block(url: str) -> str | None:
     """Fetches the title of a video/playlist item."""
@@ -84,8 +87,10 @@ def _get_video_title_block(url: str) -> str | None:
         info = ydl.extract_info(url, download=False)
         return info.get("title", None)
 
+
 async def _get_playlist_meta(url: str) -> list[tuple[str, str]]:
     return await asyncio.to_thread(_get_playlist_meta_block, url)
+
 
 def _get_playlist_meta_block(url: str) -> list[tuple[str, str]]:
     """Fetches the list of video titles in a playlist."""
@@ -146,8 +151,10 @@ async def _play_audio(ctx: commands.Context, display_title: str):
             ctx, f"> Error during playback: {e}", f"_play_audio error: {e}"
         )
 
+
 async def _download_audio(url: str, title: str = None):
     return await asyncio.to_thread(_download_audio_block, url, title)
+
 
 def _download_audio_block(url: str, title: str = None):
     """Downloads a video or playlist item."""
@@ -197,7 +204,10 @@ async def _handle_playlist(ctx: commands.Context, url: str):
         message_content = f"```List of Songs:\n{title_list}\n```"
         if len(message_content) >= 2000:
             await ctx.send(
-                file=discord.File(message_content, filename="wow ur playlist so long.txt")
+                file=discord.File(
+                    io.BytesIO(message_content.encode()),
+                    filename="wow ur playlist so long.txt",
+                )
             )
         else:
             await ctx.send(message_content)
@@ -216,7 +226,7 @@ async def _handle_playlist(ctx: commands.Context, url: str):
                 print(f"File already exists: {title}")
                 continue
             await _download_audio(url, title)
-            
+
             # Play the audio
             await _play_audio(ctx, title)
     except Exception as e:
