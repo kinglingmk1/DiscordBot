@@ -3,15 +3,17 @@ import os
 import asyncio
 import re
 import subprocess
+from tempfile import TemporaryFile
 import discord
 from discord.ext import commands
+from yt_dlp import YoutubeDL
 
 from util import (
     clean_filename,
     getFFMPEGPath,
     getIMGPath,
+    getMP3Path,
     intgrated,
-    mainPath,
 )
 
 
@@ -51,19 +53,13 @@ async def yt(ctx: commands.Context, url: str):
         await ctx.send("> Please provide a valid YouTube URL.")
         return
 
-    # --- Determine yt-dlp Executable Path ---
-    if os.name == "nt":  # Windows
-        ytdlp_executable = os.path.join(mainPath(), "yt-dlp.exe")
-    else:  # Linux/Unix
-        ytdlp_executable = os.path.join(mainPath(), "yt-dlp_linux")
-
     # --- Handle Playlist ---
     if "list=" in url:
-        await _handle_playlist(ctx, url, ytdlp_executable)
+        await _handle_playlist(ctx, url)
         return  # Exit after handling playlist
 
     # --- Handle Single Video ---
-    await _handle_single_video(ctx, url, ytdlp_executable)
+    await _handle_single_video(ctx, url)
 
 
 # --- Helper Functions ---
@@ -85,51 +81,49 @@ async def _send_error(ctx: commands.Context, message: str, error_details: str = 
         logging.error(error_details)  # Log details server-side
 
 
-async def _run_ytdlp(executable: str, *args) -> tuple[str, str]:
-    """Runs yt-dlp asynchronously and returns stdout and stderr decoded."""
-    try:
-        process = await asyncio.create_subprocess_exec(
-            executable,
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await process.communicate()
-
-        if process.returncode != 0:
-            raise subprocess.CalledProcessError(
-                process.returncode, executable, output=stderr.decode()
-            )
-
-        return stdout.decode(), stderr.decode()
-    except Exception as e:
-        raise e  # Re-raise for handling in calling function
-
-
-async def _get_video_title(executable: str, url: str) -> str:
+def _get_video_title(url: str) -> str | None:
     """Fetches the title of a video/playlist item."""
     try:
-        stdout, _ = await _run_ytdlp(executable, "--get-title", url)
-        return stdout.strip()
+        ydl_opts = {
+            "quiet": True,
+            "extract_flat": True,  # Get only the title without downloading
+            "force_generic_extractor": True,  # Use generic extractor for better compatibility
+        }
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            return info.get("title", None)
     except Exception as e:
         logging.error(f"Error getting title for {url}: {e}")
         raise e
 
 
-async def _play_audio(ctx: commands.Context, clean_title: str, display_title: str):
-    """Handles the actual playback of an audio file."""
+def _get_playlist_meta(url: str) -> list[tuple[str, str]]:
+    """Fetches the list of video titles in a playlist."""
     try:
-        # if hardresetState: # Check reset state before playing
-        #     return
+        ydl_opts = {
+            "quiet": True,
+            "extract_flat": True,  # Get only the titles without downloading
+            "force_generic_extractor": True,  # Use generic extractor for better compatibility
+        }
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            return [
+                (video.get("title", "Unknown Title"), video.get("url", "Unknown URL"))
+                for video in info.get("entries", [])
+            ]
+    except Exception as e:
+        logging.error(f"Error getting video list for {url}: {e}")
+        raise e
 
+
+async def _play_audio(ctx: commands.Context, display_title: str):
+    """Handles the actual playback of an audio file."""
+    clean_title = clean_filename(display_title)  # Clean the title for file naming
+    try:
         # Stop any currently playing audio
         vc = ctx.guild.voice_client
         if vc and vc.is_playing():
             vc.stop()
-
-        # Wait for stop to complete if needed (usually quick)
-        # while vc and vc.is_playing():
-        #     await asyncio.sleep(0.1)
 
         source_path = intgrated(clean_title)  # Get the correct file path
         ffmpeg_path = getFFMPEGPath()
@@ -154,40 +148,42 @@ async def _play_audio(ctx: commands.Context, clean_title: str, display_title: st
         )
 
 
-async def _download_video(
-    executable: str, clean_title: str, url: str, playlist_item: str = None
-):
+def _download_audio(url: str, title: str = None):
     """Downloads a video or playlist item."""
-    output_template = os.path.join(mainPath(), "music", f"{clean_title}.%(ext)s")
-    format_option = "m4a"  # Preferred format
 
-    args = ["-o", output_template, "-f", format_option, url]
-    if playlist_item:
-        args.extend(["--playlist-items", playlist_item])
+    ydl_opts = {
+        "paths": {"home": getMP3Path()},
+        "format": "m4a/bestaudio/best",
+        "break_on_existing": True,
+        "break_per_url": True,
+        "writesubtitles": False,
+        "outtmpl": f"{title or '%(title)s'}.%(ext)s",  # Save as title.ext
+        # ℹ️ See help(yt_dlp.postprocessor) for a list of available Postprocessors and their arguments
+        "postprocessors": [
+            {  # Extract audio usicng ffmpeg
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "m4a",
+            }
+        ],
+    }
 
     try:
-        await _run_ytdlp(executable, *args)
-    except subprocess.CalledProcessError as e:
-        error_msg = f"> Download failed for '{clean_title}'!"
-        details = f"Download failed (yt-dlp): {e}"
-        if e.output:  # Check if stderr output exists
-            details += f"\nDetails: {e.output}"
-        raise Exception(error_msg) from e  # Re-raise with context
+        with YoutubeDL(ydl_opts) as ydl:
+            # Download a single video
+            ydl.download([url])
     except Exception as e:
         raise Exception(f"> An unexpected error occurred during download: {e}") from e
 
 
-async def _handle_playlist(ctx: commands.Context, url: str, ytdlp_executable: str):
+async def _handle_playlist(ctx: commands.Context, url: str):
     """Handles the logic for playing a YouTube playlist."""
     try:
         # 1. Fetch Playlist Titles
-        stdout, _ = await _run_ytdlp(
-            ytdlp_executable, "--get-title", "--flat-playlist", url
-        )
-        video_titles = stdout.strip().split("\n")
+        video_metas = _get_playlist_meta(url)
+        video_titles = [meta[0] for meta in video_metas]
 
         # 2. Check for Blacklisted Content in Titles
-        combined_titles = "\n".join(video_titles)
+        combined_titles = "\n".join()
         if any(
             bl in combined_titles
             for bl in ["願榮光", "Glory to Hong Kong", "Glory to HK"]
@@ -201,39 +197,32 @@ async def _handle_playlist(ctx: commands.Context, url: str, ytdlp_executable: st
         )
         message_content = f"```List of Songs:\n{title_list}\n```"
         if len(message_content) >= 2000:
-            await ctx.send("> Playlist list is too long for a Discord message.")
+            with TemporaryFile() as f:
+                f.write(title_list)
+                f.flush()
+                await ctx.send(
+                    file=discord.File(f, filename="wow ur playlist so long.txt")
+                )
         else:
             await ctx.send(message_content)
 
         # 4. Play Each Song in the Playlist
-        music_dir = os.path.join(mainPath(), "music")
-        os.makedirs(music_dir, exist_ok=True)  # Ensure music directory exists
-
-        for i, title in enumerate(video_titles):
+        for [title, url] in video_metas:
             # if hardresetState:
             #     return # Stop if reset is triggered
-
-            clean_title = clean_filename(title)
-
             # Check if file already exists (mp3, flac, m4a)
-            file_exists = any(
-                os.path.exists(os.path.join(music_dir, f"{clean_title}.{ext}"))
+            print(f"Processing: {title} - {url}")
+            title = clean_filename(title)
+            if any(
+                os.path.exists(os.path.join(getMP3Path(), f"{title}.{ext}"))
                 for ext in ["mp3", "flac", "m4a"]
-            )
-
-            if not file_exists:
-                # Download the specific playlist item
-                await _download_video(ytdlp_executable, clean_title, url, str(i + 1))
+            ):
+                print(f"File already exists: {title}")
+                continue
+            _download_audio(url, title)
 
             # Play the audio
-            await _play_audio(ctx, clean_title, title)
-
-    except subprocess.CalledProcessError:
-        await _send_error(
-            ctx,
-            "> Failed to process the playlist.",
-            "Playlist processing failed (yt-dlp error).",
-        )
+            await _play_audio(ctx, title)
     except Exception as e:
         await _send_error(
             ctx, f"> Error handling playlist: {e}", f"_handle_playlist error: {e}"
@@ -245,7 +234,6 @@ async def _handle_single_video(ctx: commands.Context, url: str, ytdlp_executable
     try:
         # 1. Get Video Title
         video_title = await _get_video_title(ytdlp_executable, url)
-        clean_title = clean_filename(video_title)
 
         # 2. Check for Blacklisted Content in Title
         if any(
@@ -254,21 +242,15 @@ async def _handle_single_video(ctx: commands.Context, url: str, ytdlp_executable
             await _send_blacklist_warning(ctx)
             return
 
-        music_dir = os.path.join(mainPath(), "music")
-        os.makedirs(music_dir, exist_ok=True)  # Ensure music directory exists
-
-        # 3. Check if File Exists
-        file_exists = any(
-            os.path.exists(os.path.join(music_dir, f"{clean_title}.{ext}"))
+        title = clean_filename(video_title)
+        if not any(
+            os.path.exists(os.path.join(getMP3Path(), f"{title}.{ext}"))
             for ext in ["mp3", "flac", "m4a"]
-        )
-
-        # 4. Download if Necessary
-        if not file_exists:
-            await _download_video(ytdlp_executable, clean_title, url)
+        ):
+            _download_audio(url, title)
 
         # 5. Play the Audio
-        await _play_audio(ctx, clean_title, video_title)
+        await _play_audio(ctx, video_title, video_title)
 
     except subprocess.CalledProcessError:
         await _send_error(
