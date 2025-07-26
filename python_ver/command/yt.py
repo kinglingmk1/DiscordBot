@@ -255,7 +255,7 @@ async def _handle_single_video(ctx: commands.Context, url: str):
             await _download_audio(url, title)
 
         # 5. Play the Audio
-        await _play_audio(ctx, video_title, video_title)
+        await _play_audio(ctx, video_title)
     except Exception as e:
         await _send_error(
             ctx,
