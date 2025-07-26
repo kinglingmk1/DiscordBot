@@ -2,7 +2,6 @@ import logging
 import os
 import asyncio
 import re
-from tempfile import TemporaryFile
 import traceback
 import discord
 from discord.ext import commands
@@ -197,12 +196,9 @@ async def _handle_playlist(ctx: commands.Context, url: str):
         )
         message_content = f"```List of Songs:\n{title_list}\n```"
         if len(message_content) >= 2000:
-            with TemporaryFile(mode="w+", encoding='UTF-8') as f:
-                f.write(title_list)
-                f.flush()
-                await ctx.send(
-                    file=discord.File(f, filename="wow ur playlist so long.txt")
-                )
+            await ctx.send(
+                file=discord.File(message_content, filename="wow ur playlist so long.txt")
+            )
         else:
             await ctx.send(message_content)
 
