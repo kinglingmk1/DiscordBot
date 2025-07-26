@@ -33,18 +33,6 @@ async def yt(ctx: commands.Context, url: str):
     """
     Plays audio from a YouTube video or playlist URL in the user's voice channel.
     """
-    # --- Initial Checks ---
-    if ctx.author.voice is None:
-        await ctx.send("> You need to be in a voice channel to use this command.")
-        return
-
-    if ctx.voice_client is None:
-        try:
-            await ctx.author.voice.channel.connect()
-        except Exception as e:
-            await ctx.send(f"> Failed to connect to your voice channel: {e}")
-            return
-
     if blacklist(url):
         await _send_blacklist_warning(ctx)
         return
@@ -97,8 +85,10 @@ def _get_video_title(url: str) -> str | None:
         logging.error(f"Error getting title for {url}: {e}")
         raise e
 
+async def _get_playlist_meta(url: str) -> list[tuple[str, str]]:
+    return await asyncio.to_thread(_get_playlist_meta_block, url)
 
-def _get_playlist_meta(url: str) -> list[tuple[str, str]]:
+def _get_playlist_meta_block(url: str) -> list[tuple[str, str]]:
     """Fetches the list of video titles in a playlist."""
     try:
         ydl_opts = {
@@ -122,10 +112,17 @@ async def _play_audio(ctx: commands.Context, display_title: str):
     print(f"Playing audio for title: {display_title}")
     clean_title = clean_filename(display_title)  # Clean the title for file naming
     try:
-        # Stop any currently playing audio
         vc = ctx.guild.voice_client
-        if vc and vc.is_playing():
+        if vc is not None:
+            # Stop any currently playing audio
             vc.stop()
+        else:
+            # Join the voice channel if not already connected
+            if not ctx.author.voice:
+                await ctx.send("> You need to be in a voice channel to play audio.")
+                return
+            channel = ctx.author.voice.channel
+            await channel.connect()
 
         source_path = intgrated(clean_title)  # Get the correct file path
         ffmpeg_path = getFFMPEGPath()
@@ -184,7 +181,7 @@ async def _handle_playlist(ctx: commands.Context, url: str):
     """Handles the logic for playing a YouTube playlist."""
     try:
         # 1. Fetch Playlist Titles
-        video_metas = _get_playlist_meta(url)
+        video_metas = await _get_playlist_meta(url)
         video_titles = [meta[0] for meta in video_metas]
 
         # 2. Check for Blacklisted Content in Titles
