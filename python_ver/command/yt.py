@@ -187,7 +187,7 @@ async def _handle_playlist(ctx: commands.Context, url: str):
         video_titles = [meta[0] for meta in video_metas]
 
         # 2. Check for Blacklisted Content in Titles
-        combined_titles = "\n".join()
+        combined_titles = "\n".join(video_titles)
         if any(
             bl in combined_titles
             for bl in ["願榮光", "Glory to Hong Kong", "Glory to HK"]
