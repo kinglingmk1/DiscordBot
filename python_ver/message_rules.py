@@ -92,7 +92,7 @@ def setup_message_handler(client, img_path_func):
         if message.guild.id in ALLOW_GO_SERVER:
             await message.channel.send("還在Go 還在Go")
             img_path = kwargs.get("img_path", "")
-            await message.channel.send(file=discord.File(os.path.join(img_path + "我也一樣.jpg")))
+            await message.channel.send(file=discord.File(os.path.join(img_path, "我也一樣.jpg")))
         return True
 
     handler.add_rule(
