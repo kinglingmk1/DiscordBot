@@ -20,43 +20,6 @@ def getIMGPath():
     return os.path.join(mainPath(), "img")
 
 
-def decode_subprocess_output(output_bytes):
-    """嘗試使用不同編碼解碼subprocess輸出，優先處理日文編碼"""
-    encodings = [
-        "shift_jis",
-        "cp932",
-        "utf-8",
-        "euc-jp",
-        "iso-2022-jp",
-        "cp1252",
-        "cp437",
-        "gbk",
-        "big5",
-    ]
-    for enc in encodings:
-        try:
-            decoded = output_bytes.decode(enc).strip()
-            if "\\u" in decoded:
-                try:
-                    decoded = decoded.encode().decode("unicode_escape")
-                except Exception:
-                    pass
-            if (
-                any(
-                    "\u3040" <= c <= "\u309f"  # Hiragana
-                    or "\u30a0" <= c <= "\u30ff"  # Katakana
-                    or "\u4e00" <= c <= "\u9faf"  # Kanji
-                    for c in decoded
-                )
-                or enc in encodings[:3]
-            ):
-                return decoded
-        except UnicodeDecodeError:
-            continue
-    result = output_bytes.decode("shift_jis", errors="ignore").strip()
-    return result.encode().decode("unicode_escape") if "\\u" in result else result
-
-
 def intgrated(input_path):
     """Combine MP3 path with the cleaned audio path."""
     return os.path.join(getMP3Path(), removePath(getAudioPath(input_path)))

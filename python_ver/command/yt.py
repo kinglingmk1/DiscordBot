@@ -8,7 +8,6 @@ from discord.ext import commands
 
 from util import (
     clean_filename,
-    decode_subprocess_output,
     getFFMPEGPath,
     getIMGPath,
     intgrated,
@@ -102,7 +101,7 @@ async def _run_ytdlp(executable: str, *args) -> tuple[str, str]:
                 process.returncode, executable, output=stderr.decode()
             )
 
-        return decode_subprocess_output(stdout), decode_subprocess_output(stderr)
+        return stdout, stderr
     except Exception as e:
         raise e  # Re-raise for handling in calling function
 

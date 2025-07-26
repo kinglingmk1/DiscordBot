@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import logging
 from command.play import MusicPlayer
 from command.upload import upload
