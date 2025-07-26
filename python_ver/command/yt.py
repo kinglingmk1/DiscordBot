@@ -197,7 +197,7 @@ async def _handle_playlist(ctx: commands.Context, url: str):
         )
         message_content = f"```List of Songs:\n{title_list}\n```"
         if len(message_content) >= 2000:
-            with TemporaryFile() as f:
+            with TemporaryFile(mode="w+") as f:
                 f.write(title_list)
                 f.flush()
                 await ctx.send(
