@@ -114,7 +114,7 @@ async def _play_audio(ctx: commands.Context, display_title: str):
     print(f"Playing audio for title: {display_title}")
     clean_title = clean_filename(display_title)  # Clean the title for file naming
     try:
-        vc = ctx.guild.voice_client
+        vc = ctx.voice_client
         if vc is not None:
             # Stop any currently playing audio
             vc.stop()
@@ -124,7 +124,7 @@ async def _play_audio(ctx: commands.Context, display_title: str):
                 await ctx.send("> You need to be in a voice channel to play audio.")
                 return
             channel = ctx.author.voice.channel
-            await channel.connect()
+            vc = await channel.connect()
 
         source_path = intgrated(clean_title)  # Get the correct file path
         ffmpeg_path = getFFMPEGPath()
