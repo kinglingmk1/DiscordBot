@@ -41,29 +41,6 @@ if [[ "$install_choice" != "y" && "$install_choice" != "Y" ]]; then
     echo "Installation aborted."
     exit 0
 fi
-echo "Checking yt-dlp exists..."
-yt_dlp_url="https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
-
-if [ -f "./python_ver/yt-dlp" ]; then
-    echo "yt-dlp already exists in python_ver directory."
-else
-    echo "yt-dlp does not exist, proceeding with download."
-    echo "Do you agree to install yt-dlp? (y/n)"
-    read -r install_yt_dlp_choice
-    if [[ "$install_yt_dlp_choice" != "y" && "$install_yt_dlp_choice" != "Y" ]]; then
-        echo "Skipping yt-dlp installation. You may need to install it manually."
-        exit 0
-    fi
-    echo "Installing yt-dlp"
-    curl -L -o "./python_ver/yt-dlp" "$yt_dlp_url"
-    if [ $? -ne 0 ]; then
-        echo "Failed to download yt-dlp. Please check your internet connection or the URL."
-        exit 1
-    fi
-    chmod +x "./python_ver/yt-dlp"
-    mv "./python_ver/yt-dlp" "./python_ver/yt-dlp_linux"
-    echo "Downloaded and made yt-dlp executable."
-fi
 
 echo "Checking ffmpeg exists..."
 if [ -f "./python_ver/ffmpeg" ]; then

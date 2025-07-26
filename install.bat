@@ -8,19 +8,6 @@ if /i "%install_choice%" neq "y" (
     exit /b 0
 )
 
-echo Checking yt-dlp.exe exists...
-set yt_dlp_url=https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe
-if exist "./python_ver/yt-dlp.exe" (
-    echo yt-dlp.exe already exists in python_ver directory.
-) else (
-    echo yt-dlp.exe does not exist, proceeding with download.
-    echo Installing yt-dlp.exe
-    curl -L -o "./python_ver/yt-dlp.exe" %yt_dlp_url%
-    if %errorlevel% neq 0 (
-        echo Failed to download yt-dlp.exe. Please check your internet connection or the URL.
-        goto :cleanup
-    )
-)
 echo Checking ffmpeg.exe exists...
 if exist "./python_ver/ffmpeg.exe" (
     echo ffmpeg.exe already exists in python_ver directory.
