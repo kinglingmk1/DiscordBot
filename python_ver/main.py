@@ -9,6 +9,7 @@ import random
 import asyncio
 import subprocess
 import re
+import sys
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -34,9 +35,9 @@ def getMP3(input):
     else:
         files = glob.glob(os.path.join(music_dir, '*.mp3')) + glob.glob(os.path.join(music_dir, '*.flac') ) + glob.glob(os.path.join(music_dir, '*.m4a'))
         for file in files:
-            if input in os.path.basename(file) :
+            if input.lower() in os.path.basename(file).lower():
                 return file
-    return input
+    return None
 
 def getFFMPEGPath():
     # 根據操作系統返回正確的 FFmpeg 路徑
@@ -68,6 +69,8 @@ def removefileName(input):
         input = input[:-4]
     elif input.endswith('.flac'):
         input = input[:-5]
+    elif input.endswith('.m4a'):
+        input = input[:-4]
     return input
 
 def blacklist(input):
@@ -92,21 +95,13 @@ async def on_ready():
 
 @client.command()
 async def hardreset(ctx):
+    global hardresetState
     hardresetState = True
     """Totally shutdown the bot and restart it"""
-    #if in chat then leave
     if ctx.voice_client:
         await ctx.voice_client.disconnect()
-    try:
-        if os.name == 'nt':  # Windows
-            subprocess.Popen(['start', 'cmd', '/k', f'python main.py'], shell=True)
-        else:  # Linux/Unix
-            subprocess.Popen(['python3', mainPath() + '/main.py'], close_fds=True)
-    except Exception as e:
-        await ctx.send(f"> Error during hard reset: {e}")
-        return
     await client.close()
-    os.execv(__file__, ['python'] + [__file__])
+    os.execv(sys.executable, [sys.executable, __file__])
 
 @client.command()
 async def join(ctx):
@@ -390,6 +385,10 @@ async def play(ctx, *, arg):
     vc = ctx.guild.voice_client
     # Remove quotes, clean up filename
     arg_clean = arg.strip('"')
+    if(intgrated(arg_clean) is None):
+        await ctx.send("> No such that song in storage.")
+        return
+    
     vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(arg_clean), options='-filter:a "volume=0.1"'))
     await ctx.channel.send("> Now playing: " + removefileName(removePath(getMP3(arg_clean)))
     )
