@@ -235,7 +235,7 @@ async def _handle_single_video(ctx: commands.Context, url: str):
     """Handles the logic for playing a single YouTube video."""
     try:
         # 1. Get Video Title
-        video_title = await _get_video_title(ytdlp_executable, url)
+        video_title = await _get_video_title(url)
 
         # 2. Check for Blacklisted Content in Title
         if any(
