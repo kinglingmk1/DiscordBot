@@ -2,8 +2,8 @@ import logging
 import os
 import asyncio
 import re
-import subprocess
 from tempfile import TemporaryFile
+import traceback
 import discord
 from discord.ext import commands
 from yt_dlp import YoutubeDL
@@ -59,6 +59,8 @@ async def _send_blacklist_warning(ctx: commands.Context):
         img_path = os.path.join(getIMGPath(), "對健康不好喔_2-Cmch--Fa.webp")
         await ctx.send(file=discord.File(img_path))
     except Exception as e:
+        # print to console for debugging
+        traceback.print_exc()
         logging.error(f"Error sending blacklist image: {e}")
 
 
@@ -74,18 +76,14 @@ async def _get_video_title(url: str) -> str | None:
 def _get_video_title_block(url: str) -> str | None:
     """Fetches the title of a video/playlist item."""
     print(f"Fetching title for URL: {url}")
-    try:
-        ydl_opts = {
-            "quiet": True,
-            "extract_flat": True,  # Get only the title without downloading
-            "force_generic_extractor": True,  # Use generic extractor for better compatibility
-        }
-        with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            return info.get("title", None)
-    except Exception as e:
-        logging.error(f"Error getting title for {url}: {e}")
-        raise e
+    ydl_opts = {
+        "quiet": True,
+        "extract_flat": True,  # Get only the title without downloading
+        "force_generic_extractor": True,  # Use generic extractor for better compatibility
+    }
+    with YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        return info.get("title", None)
 
 async def _get_playlist_meta(url: str) -> list[tuple[str, str]]:
     return await asyncio.to_thread(_get_playlist_meta_block, url)
@@ -94,7 +92,6 @@ def _get_playlist_meta_block(url: str) -> list[tuple[str, str]]:
     """Fetches the list of video titles in a playlist."""
     try:
         ydl_opts = {
-            "quiet": True,
             "extract_flat": True,  # Get only the titles without downloading
             "force_generic_extractor": True,  # Use generic extractor for better compatibility
         }
@@ -144,6 +141,8 @@ async def _play_audio(ctx: commands.Context, display_title: str):
             await asyncio.sleep(1)
 
     except Exception as e:
+        # print to console for debugging
+        traceback.print_exc()
         await _send_error(
             ctx, f"> Error during playback: {e}", f"_play_audio error: {e}"
         )
@@ -171,12 +170,9 @@ def _download_audio_block(url: str, title: str = None):
         ],
     }
 
-    try:
-        with YoutubeDL(ydl_opts) as ydl:
-            # Download a single video
-            ydl.download([url])
-    except Exception as e:
-        raise Exception(f"> An unexpected error occurred during download: {e}") from e
+    with YoutubeDL(ydl_opts) as ydl:
+        # Download a single video
+        ydl.download([url])
 
 
 async def _handle_playlist(ctx: commands.Context, url: str):
@@ -228,6 +224,8 @@ async def _handle_playlist(ctx: commands.Context, url: str):
             # Play the audio
             await _play_audio(ctx, title)
     except Exception as e:
+        # print to console for debugging
+        traceback.print_exc()
         await _send_error(
             ctx, f"> Error handling playlist: {e}", f"_handle_playlist error: {e}"
         )
@@ -257,6 +255,7 @@ async def _handle_single_video(ctx: commands.Context, url: str):
         # 5. Play the Audio
         await _play_audio(ctx, video_title)
     except Exception as e:
+        traceback.print_exc()
         await _send_error(
             ctx,
             f"> Error handling single video: {e}",
