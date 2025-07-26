@@ -49,17 +49,6 @@ async def join(ctx):
 
 
 @client.command()
-async def leave(ctx):
-    if ctx.author.voice is None:
-        return
-    if ctx.voice_client:
-        await ctx.voice_client.disconnect()
-        await ctx.send("Disconnected from the voice channel.")
-    else:
-        await ctx.send("I'm not in a voice channel.")
-
-
-@client.command()
 async def getPermission(ctx):
     # Display a button on the text channel to get permission and assign a role
     class PermissionButton(discord.ui.View):
