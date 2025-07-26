@@ -22,7 +22,7 @@ def getIMGPath():
 
 def intgrated(input_path):
     """Combine MP3 path with the cleaned audio path."""
-    return os.path.join(getMP3Path(), input_path)
+    return os.path.join(getMP3Path(), removePath(getAudioPath(input_path)))
 
 
 def clean_filename(filename):
@@ -59,6 +59,8 @@ def getAudioPath(input_name):
 
 
 def removePath(input_path):
+    if input_path is None:
+        return input_path
     mp3_path = getMP3Path() + os.sep
     return (
         input_path[len(mp3_path) :] if input_path.startswith(mp3_path) else input_path

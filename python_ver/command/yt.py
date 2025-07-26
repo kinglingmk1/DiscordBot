@@ -219,12 +219,13 @@ async def _handle_playlist(ctx: commands.Context, url: str):
             # Check if file already exists (mp3, flac, m4a)
             print(f"Processing: {title} - {url}")
             title = clean_filename(title)
-            if any(
+            if not any(
                 os.path.exists(os.path.join(getMP3Path(), f"{title}.{ext}"))
                 for ext in ["mp3", "flac", "m4a"]
             ):
-                print(f"File already exists: {title}")
                 await _download_audio(url, title)
+            else:
+                print(f"File already exists: {title}")
 
             # Play the audio
             await _play_audio(ctx, title)
