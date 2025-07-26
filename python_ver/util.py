@@ -13,7 +13,7 @@ def removefileName(input_path):
 
 
 def mainPath():
-    return os.path.dirname(os.path.abspath(__file__))
+    return os.path.dirname(os.path.realpath(__file__))
 
 
 def getIMGPath():

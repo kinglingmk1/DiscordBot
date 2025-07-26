@@ -1,3 +1,4 @@
+from logging import ERROR, log
 import os
 import asyncio
 import re
@@ -75,14 +76,14 @@ async def _send_blacklist_warning(ctx: commands.Context):
         img_path = os.path.join(getIMGPath(), "對健康不好喔_2-Cmch--Fa.webp")
         await ctx.send(file=discord.File(img_path))
     except Exception as e:
-        print(f"Error sending blacklist image: {e}")
+        log(ERROR, f"Error sending blacklist image: {e}")
 
 
 async def _send_error(ctx: commands.Context, message: str, error_details: str = ""):
     """Sends a generic error message."""
     await ctx.send(message)
     if error_details:
-        print(error_details)  # Log details server-side
+        log(ERROR, error_details)  # Log details server-side
 
 
 async def _run_ytdlp(executable: str, *args) -> tuple[str, str]:
@@ -112,7 +113,7 @@ async def _get_video_title(executable: str, url: str) -> str:
         stdout, _ = await _run_ytdlp(executable, "--get-title", url)
         return stdout.strip()
     except Exception as e:
-        print(f"Error getting title for {url}: {e}")
+        log(ERROR,f"Error getting title for {url}: {e}")
         raise e
 
 

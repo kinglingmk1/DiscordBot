@@ -1,3 +1,4 @@
+from logging import ERROR, INFO, log
 from command.play import MusicPlayer
 from command.upload import upload
 from command.yt import yt
@@ -32,7 +33,7 @@ async def on_ready():
     message_handler = setup_message_handler(client=client, img_path_func=getIMGPath)
     await client.add_cog(MusicPlayer(client))
 
-    print(f"目前登入身份 --> {client.user}" + " 使用系統: " + os.name)
+    log(INFO, f"目前登入身份 --> {client.user}" + " 使用系統: " + os.name)
 
 
 @client.command()
@@ -79,9 +80,12 @@ def cleanup_file(path):
         pass
     except PermissionError:
         # The file is still in use; you can log or retry later.
-        print(f"PermissionError: Could not remove {path} because it is still in use.")
+        log(
+            ERROR,
+            f"PermissionError: Could not remove {path} because it is still in use.",
+        )
     except Exception as e:
-        print(f"Error cleaning up file: {e}")
+        log(ERROR, f"Error cleaning up file: {e}")
 
 
 @client.command()
@@ -118,5 +122,6 @@ async def on_message(message):
 
     # If no rule handled the message, process commands
     await client.process_commands(message)
+
 
 client.run(DISCORD_TOKEN)

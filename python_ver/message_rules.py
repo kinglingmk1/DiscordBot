@@ -2,12 +2,14 @@
 Message rules configuration for Discord bot
 """
 
+import asyncio
+import os
+from config import ALLOW_GO_SERVER
 from message_handler import (
     MessageHandler,
     MessageRule,
     MatchType,
     ResponseType,
-    deepseek_animation,
 )
 import random
 import discord
@@ -36,7 +38,7 @@ def setup_message_handler(client, img_path_func):
         imgs = ["不行.jpg", "不可以-BiaRmwz4.webp"]
         chosen_img = random.choice(imgs)
         img_path = kwargs.get("img_path", "")
-        await message.channel.send(file=discord.File(img_path + chosen_img))
+        await message.channel.send(file=discord.File(os.path.join(img_path, chosen_img)))
         return True
 
     # Add rule for negative words in content
@@ -67,7 +69,7 @@ def setup_message_handler(client, img_path_func):
     async def kasuga_response(message: discord.Message, **kwargs):
         img_path = kwargs.get("img_path", "")
         await message.channel.send(
-            file=discord.File(img_path + "為什麼要演奏春日影.jpg")
+            file=discord.File(os.path.join(img_path, "為什麼要演奏春日影.jpg"))
         )
         # Process commands if message starts with "!"
         if message.content.startswith("!"):
@@ -87,10 +89,10 @@ def setup_message_handler(client, img_path_func):
 
     # Rule for "go" variants - custom response with condition
     async def go_custom_response(message: discord.Message, **kwargs):
-        if message.guild in [1029936857590538321, 750018162228986008]:
+        if message.guild in ALLOW_GO_SERVER:
             await message.channel.send("還在Go 還在Go")
             img_path = kwargs.get("img_path", "")
-            await message.channel.send(file=discord.File(img_path + "我也一樣.jpg"))
+            await message.channel.send(file=discord.File(os.path.join(img_path + "我也一樣.jpg")))
         return True
 
     handler.add_rule(
@@ -200,11 +202,30 @@ def setup_message_handler(client, img_path_func):
             name="mentions",
             match_type=MatchType.CUSTOM,
             keywords=mention_matcher,
-            response_type=ResponseType.FILE,
+            response_type=ResponseType.IMAGE,
             response_data="幹嘛-CStDUUrz.webp",
             priority=2,
         )
     )
+
+    async def deepseek_animation(message: discord.Message):
+        """Custom animation for deepseek mode"""
+        frames = [
+            ("思", 0.02),
+            ("思考", 0.02),
+            ("思考中", 0.02),
+            ("思考中.", 0.02),
+            ("思考中..", 0.02),
+            ("思考中...", 0.02)
+        ]
+        
+        sent = await message.channel.send(frames[0][0])
+        for content, delay in frames[1:]:
+            sent = await sent.edit(content=content)
+            await asyncio.sleep(delay)
+        
+        await asyncio.sleep(5)
+        await message.channel.send("服务器繁忙，请稍后再试")
 
     # Rule for deepseek mode - special animation
     handler.add_rule(
