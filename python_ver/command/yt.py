@@ -68,8 +68,10 @@ async def _send_error(ctx: commands.Context, message: str, error_details: str = 
     if error_details:
         logging.error(error_details)  # Log details server-side
 
+async def _get_video_title(url: str) -> str | None:
+    return await asyncio.to_thread(_get_video_title_block, url)
 
-def _get_video_title(url: str) -> str | None:
+def _get_video_title_block(url: str) -> str | None:
     """Fetches the title of a video/playlist item."""
     print(f"Fetching title for URL: {url}")
     try:
@@ -254,13 +256,6 @@ async def _handle_single_video(ctx: commands.Context, url: str):
 
         # 5. Play the Audio
         await _play_audio(ctx, video_title, video_title)
-
-    except subprocess.CalledProcessError:
-        await _send_error(
-            ctx,
-            "> Failed to process the video.",
-            "Single video processing failed (yt-dlp error).",
-        )
     except Exception as e:
         await _send_error(
             ctx,
