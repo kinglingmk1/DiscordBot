@@ -224,8 +224,7 @@ async def _handle_playlist(ctx: commands.Context, url: str):
                 for ext in ["mp3", "flac", "m4a"]
             ):
                 print(f"File already exists: {title}")
-                continue
-            await _download_audio(url, title)
+                await _download_audio(url, title)
 
             # Play the audio
             await _play_audio(ctx, title)
