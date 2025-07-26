@@ -212,4 +212,3 @@ class MessageHandler:
     def list_rules(self) -> List[str]:
         """Get list of all rule names"""
         return [rule.name for rule in self.rules]
-

@@ -1,4 +1,4 @@
-from logging import ERROR, INFO, log
+import logging
 from command.play import MusicPlayer
 from command.upload import upload
 from command.yt import yt
@@ -8,6 +8,7 @@ import os
 from discord.ext import commands
 
 # Import the new message handler system
+from event.mygo_listener import MyGoListener
 from message_rules import setup_message_handler
 from util import (
     getIMGPath,
@@ -18,22 +19,6 @@ intents.message_content = True
 client = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 client.add_command(yt)
 client.add_command(upload)
-
-# Initialize message handler
-message_handler = None
-
-
-@client.event
-async def on_ready():
-    global message_handler
-    # for cog in COGS:
-    #    await client.add_cog(cog)
-
-    # Initialize the message handler with required functions
-    message_handler = setup_message_handler(client=client, img_path_func=getIMGPath)
-    await client.add_cog(MusicPlayer(client))
-
-    log(INFO, f"目前登入身份 --> {client.user}" + " 使用系統: " + os.name)
 
 
 @client.command()
@@ -80,12 +65,11 @@ def cleanup_file(path):
         pass
     except PermissionError:
         # The file is still in use; you can log or retry later.
-        log(
-            ERROR,
+        logging.error(
             f"PermissionError: Could not remove {path} because it is still in use.",
         )
     except Exception as e:
-        log(ERROR, f"Error cleaning up file: {e}")
+        logging.error(f"Error cleaning up file: {e}")
 
 
 @client.command()
@@ -108,6 +92,19 @@ async def help(ctx):
 
 
 @client.event
+async def on_ready():
+    # Initialize the message handler with required functions
+    await client.add_cog(MusicPlayer(client))
+    await client.add_cog(
+        MyGoListener(
+            client, setup_message_handler(client=client, img_path_func=getIMGPath)
+        )
+    )
+
+    logging.info(f"目前登入身份 --> {client.user}" + " 使用系統: " + os.name)
+
+
+@client.event
 async def on_message(message):
     """
     Streamlined message handler using the message handler interface.
@@ -115,10 +112,6 @@ async def on_message(message):
     """
     if message.author == client.user:
         return
-
-    # Try to handle the message with our rule-based system
-    if message_handler and await message_handler.handle_message(message):
-        return  # Message was handled by a rule
 
     # If no rule handled the message, process commands
     await client.process_commands(message)

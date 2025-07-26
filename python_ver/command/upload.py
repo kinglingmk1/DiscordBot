@@ -1,4 +1,4 @@
-from logging import ERROR, log
+import logging
 import aiohttp
 import discord
 from discord.ext import commands
@@ -47,7 +47,7 @@ async def upload(ctx, link: str = None):
                     data = await response.read()
         except Exception as e:
             await ctx.send("An error occurred while downloading the file.")
-            log(ERROR, f"Download failed: {e}")
+            logging.error(f"Download failed: {e}")
             return
 
         save_path = getMP3Path() + file_name
@@ -56,7 +56,7 @@ async def upload(ctx, link: str = None):
                 f.write(data)
         except Exception as e:
             await ctx.send("Failed to save the downloaded file.")
-            log(ERROR, f"[ERROR] File save failed: {e}")
+            logging.error(f"[ERROR] File save failed: {e}")
             return
 
     # No file or link provided

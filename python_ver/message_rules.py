@@ -38,7 +38,9 @@ def setup_message_handler(client, img_path_func):
         imgs = ["不行.jpg", "不可以-BiaRmwz4.webp"]
         chosen_img = random.choice(imgs)
         img_path = kwargs.get("img_path", "")
-        await message.channel.send(file=discord.File(os.path.join(img_path, chosen_img)))
+        await message.channel.send(
+            file=discord.File(os.path.join(img_path, chosen_img))
+        )
         return True
 
     # Add rule for negative words in content
@@ -92,7 +94,9 @@ def setup_message_handler(client, img_path_func):
         if message.guild.id in ALLOW_GO_SERVER:
             await message.channel.send("還在Go 還在Go")
             img_path = kwargs.get("img_path", "")
-            await message.channel.send(file=discord.File(os.path.join(img_path, "我也一樣.jpg")))
+            await message.channel.send(
+                file=discord.File(os.path.join(img_path, "我也一樣.jpg"))
+            )
         return True
 
     handler.add_rule(
@@ -216,14 +220,14 @@ def setup_message_handler(client, img_path_func):
             ("思考中", 0.02),
             ("思考中.", 0.02),
             ("思考中..", 0.02),
-            ("思考中...", 0.02)
+            ("思考中...", 0.02),
         ]
-        
+
         sent = await message.channel.send(frames[0][0])
         for content, delay in frames[1:]:
             sent = await sent.edit(content=content)
             await asyncio.sleep(delay)
-        
+
         await asyncio.sleep(5)
         await message.channel.send("服务器繁忙，请稍后再试")
 
