@@ -10,4 +10,4 @@ class MyGoListener(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        self.message_handler.handle_message(message)
+        await self.message_handler.handle_message(message)

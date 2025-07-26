@@ -101,7 +101,7 @@ async def _run_ytdlp(executable: str, *args) -> tuple[str, str]:
                 process.returncode, executable, output=stderr.decode()
             )
 
-        return stdout, stderr
+        return stdout.decode(), stderr.decode()
     except Exception as e:
         raise e  # Re-raise for handling in calling function
 
