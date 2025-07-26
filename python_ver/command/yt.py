@@ -83,6 +83,7 @@ async def _send_error(ctx: commands.Context, message: str, error_details: str = 
 
 def _get_video_title(url: str) -> str | None:
     """Fetches the title of a video/playlist item."""
+    print(f"Fetching title for URL: {url}")
     try:
         ydl_opts = {
             "quiet": True,
@@ -118,6 +119,7 @@ def _get_playlist_meta(url: str) -> list[tuple[str, str]]:
 
 async def _play_audio(ctx: commands.Context, display_title: str):
     """Handles the actual playback of an audio file."""
+    print(f"Playing audio for title: {display_title}")
     clean_title = clean_filename(display_title)  # Clean the title for file naming
     try:
         # Stop any currently playing audio
@@ -153,6 +155,7 @@ async def _download_audio(url: str, title: str = None):
 def _download_audio_block(url: str, title: str = None):
     """Downloads a video or playlist item."""
 
+    print(f"Downloading video: {title} - {url}")
     ydl_opts = {
         "paths": {"home": getMP3Path()},
         "format": "m4a/bestaudio/best",
@@ -222,7 +225,7 @@ async def _handle_playlist(ctx: commands.Context, url: str):
                 print(f"File already exists: {title}")
                 continue
             await _download_audio(url, title)
-
+            
             # Play the audio
             await _play_audio(ctx, title)
     except Exception as e:
@@ -244,6 +247,7 @@ async def _handle_single_video(ctx: commands.Context, url: str, ytdlp_executable
             await _send_blacklist_warning(ctx)
             return
 
+        print(f"Processing video: {video_title} - {url}")
         title = clean_filename(video_title)
         if not any(
             os.path.exists(os.path.join(getMP3Path(), f"{title}.{ext}"))
