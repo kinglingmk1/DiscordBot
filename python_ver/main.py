@@ -1,114 +1,25 @@
+from command.play import MusicPlayer
+from command.upload import upload
+from command.yt import yt
 from config import DISCORD_TOKEN
 import discord
 import os
-import glob
 from discord.ext import commands
-from datetime import datetime
-import aiohttp
-
-# from command.join import Join
-import asyncio
-import subprocess
-import re
-import sys
 
 # Import the new message handler system
 from message_rules import setup_message_handler
+from util import (
+    getIMGPath,
+)
 
 intents = discord.Intents.default()
 intents.message_content = True
 client = commands.Bot(command_prefix="!", intents=intents, help_command=None)
-# COGS = [Join(client)]
-isGo = True
-video_title = ""
-hardresetState = False
+client.add_command(yt)
+client.add_command(upload)
 
 # Initialize message handler
 message_handler = None
-
-
-def mainPath():
-    return os.path.dirname(os.path.abspath(__file__))
-
-
-def getMP3(input):
-    music_dir = getMP3Path()
-    mp3_path = os.path.join(music_dir, input + ".mp3")
-    flac_path = os.path.join(music_dir, input + ".flac")
-    m4a_path = os.path.join(music_dir, input + ".m4a")
-    if os.path.exists(mp3_path):
-        return mp3_path
-    elif os.path.exists(flac_path):
-        return flac_path
-    elif os.path.exists(m4a_path):
-        return m4a_path
-    else:
-        files = (
-            glob.glob(os.path.join(music_dir, "*.mp3"))
-            + glob.glob(os.path.join(music_dir, "*.flac"))
-            + glob.glob(os.path.join(music_dir, "*.m4a"))
-        )
-        for file in files:
-            if input.lower() in os.path.basename(file).lower():
-                return file
-    return None
-
-
-def getFFMPEGPath():
-    # 根據操作系統返回正確的 FFmpeg 路徑
-    if os.name == "nt":  # Windows
-        return mainPath() + "\\ffmpeg.exe"
-    else:  # Linux/Unix
-        return mainPath() + "/ffmpeg"  # 使用系統路徑中的 ffmpeg
-
-
-def getMP3Path():
-    if os.name == "nt":
-        return mainPath() + "\\music\\"
-    else:
-        return mainPath() + "/music/"
-
-
-def getIMGPath():
-    if os.name == "nt":
-        return mainPath() + "\\img\\"
-    else:
-        return mainPath() + "/img/"
-
-
-def removePath(input):
-    if input.startswith(getMP3Path()):
-        return input[len(getMP3Path()) :]
-    return input
-
-
-def intgrated(input):
-    return getMP3Path() + removePath(getMP3(input))
-
-
-def removefileName(input):
-    if input.endswith(".mp3"):
-        input = input[:-4]
-    elif input.endswith(".flac"):
-        input = input[:-5]
-    elif input.endswith(".m4a"):
-        input = input[:-4]
-    return input
-
-
-def blacklist(input):
-    match input:
-        case "https://www.youtube.com/watch?v=jXZNOecZreY":
-            return True
-        case "https://www.youtube.com/watch?v=FXGoN6xBeD0":
-            return True
-        case "https://www.youtube.com/watch?v=Pe1gTPcWyds":
-            return True
-        case "https://www.youtube.com/watch?v=dY_hkbVQA20":
-            return True
-        case "https://www.youtube.com/watch?v=PmCtqVMlpgk":
-            return True
-    return False
 
 
 @client.event
@@ -116,358 +27,25 @@ async def on_ready():
     global message_handler
     # for cog in COGS:
     #    await client.add_cog(cog)
-    
+
     # Initialize the message handler with required functions
-    message_handler = setup_message_handler(
-        client=client,
-        img_path_func=getIMGPath,
-        is_go_func=lambda: isGo
-    )
-    
+    message_handler = setup_message_handler(client=client, img_path_func=getIMGPath)
+    await client.add_cog(MusicPlayer(client))
+
     print(f"目前登入身份 --> {client.user}" + " 使用系統: " + os.name)
 
 
 @client.command()
-async def hardreset(ctx):
-    global hardresetState
-    hardresetState = True
-    """Totally shutdown the bot and restart it"""
-    if ctx.voice_client:
-        await ctx.voice_client.disconnect()
-    await client.close()
-    os.execv(sys.executable, [sys.executable, __file__])
-
-
-@client.command()
 async def join(ctx):
-    if ctx.author.voice:
-        channel = ctx.author.voice.channel
-        if ctx.voice_client is None:
-            await channel.connect()
-        else:
-            await ctx.voice_client.move_to(channel)
-    else:
+    """Connects the bot to the user's voice channel."""
+    if not ctx.author.voice:
         return
 
-
-def clean_filename(filename):
-    """清理檔案名稱，移除或替換特殊字元"""
-    # 移除或替換有問題的字元
-    filename = re.sub(r'[<>:"/\\|?*]', "", filename)  # 移除 Windows 不允許的字元
-    filename = re.sub(r"[【】「」／\\]", "", filename)  # 移除日文括號和斜線
-    filename = filename.replace("！", "!")  # 替換全形驚嘆號
-    filename = filename.strip()  # 移除首尾空白
-    return filename
-
-
-def decode_subprocess_output(output_bytes):
-    """嘗試使用不同編碼解碼subprocess輸出，優先處理日文編碼"""
-    # 優先嘗試日文編碼，特別是Shift_JIS和CP932
-    encodings = [
-        "shift_jis",
-        "cp932",
-        "utf-8",
-        "euc-jp",
-        "iso-2022-jp",
-        "cp1252",
-        "cp437",
-        "gbk",
-        "big5",
-    ]
-
-    for encoding in encodings:
-        try:
-            decoded = output_bytes.decode(encoding).strip()
-
-            # 嘗試處理Unicode轉義序列
-            try:
-                # 如果包含\u轉義序列，嘗試解碼
-                if "\\u" in decoded:
-                    decoded = decoded.encode().decode("unicode_escape")
-            except:
-                pass  # 如果Unicode解碼失敗，繼續使用原始解碼結果
-
-            # 檢查是否包含日文字符來驗證解碼是否正確
-            if any(
-                "\u3040" <= char <= "\u309f"  # Hiragana
-                or "\u30a0" <= char <= "\u30ff"  # Katakana
-                or "\u4e00" <= char <= "\u9faf"  # Kanji
-                for char in decoded
-            ):
-                return decoded
-            # 如果沒有日文字符但解碼成功，也返回結果
-            elif encoding in ["utf-8", "shift_jis", "cp932"]:
-                return decoded
-        except UnicodeDecodeError:
-            continue
-
-    # 如果所有編碼都失敗，使用shift_jis並忽略錯誤
-    result = output_bytes.decode("shift_jis", errors="ignore").strip()
-
-    # 最後嘗試Unicode轉義解碼
-    try:
-        if "\\u" in result:
-            result = result.encode().decode("unicode_escape")
-    except:
-        pass
-
-    return result
-
-
-@client.command()
-async def yt(ctx, url: str):
-    if ctx.author.voice is None:
-        return
+    channel = ctx.author.voice.channel
     if ctx.voice_client is None:
-        await ctx.author.voice.channel.connect()
-    if blacklist(url):
-        await ctx.send(file=discord.File(getIMGPath() + "對健康不好喔_2-Cmch--Fa.webp"))
-        return
-    if not url.startswith("https://www.youtube.com/watch") and not url.startswith(
-        "https://youtu.be/"
-    ):
-        return
-    if url.__contains__("list="):
-        try:
-            if os.name == "nt":  # Windows
-                process = await asyncio.create_subprocess_exec(
-                    mainPath() + "/yt-dlp.exe",
-                    "--get-title",
-                    "--flat-playlist",
-                    url,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-            else:  # Linux/Unix
-                process = await asyncio.create_subprocess_exec(
-                    mainPath() + "/yt-dlp_linux",
-                    "--get-title",
-                    "--flat-playlist",
-                    url,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-            stdout, stderr = await process.communicate()
-            if process.returncode != 0:
-                if os.name == "nt":  # Windows
-                    raise subprocess.CalledProcessError(process.returncode, "yt-dlp")
-                else:  # Linux/Unix
-                    raise subprocess.CalledProcessError(
-                        process.returncode, "yt-dlp_linux"
-                    )
-
-            video_title = decode_subprocess_output(stdout)
-            # use array to store the title
-            video_titles = video_title.split("\n")
-            titleName = ""
-            for i, title in enumerate(video_titles):
-                titleName += str(i + 1) + ". " + title + "\n"
-            titleName += "```"
-
-            if (
-                "願榮光" in titleName
-                or "Glory to Hong Kong" in titleName
-                or "Glory to HK" in titleName
-            ):
-                await ctx.send(
-                    file=discord.File(getIMGPath() + "對健康不好喔_2-Cmch--Fa.webp")
-                )
-                return
-            if len(titleName) >= 2000:
-                await ctx.send(f"> List too long out of discord message limit")
-            else:
-                await ctx.send(f"```List of Song:\n{titleName}")
-
-            # 逐一播放每首歌
-            for i, title in enumerate(video_titles):
-                clean = clean_filename(title)
-
-                # 檢查檔案是否已存在
-                if (
-                    os.path.exists(mainPath() + "/music/" + clean + ".mp3")
-                    or os.path.exists(mainPath() + "/music/" + clean + ".flac")
-                    or os.path.exists(mainPath() + "/music/" + clean + ".m4a")
-                ):
-                    if hardresetState:
-                        return
-                    await ctx.send(f"> Now Playing: {title}")
-                    vc = ctx.guild.voice_client
-                    if vc.is_playing():
-                        vc.stop()
-                    while vc.is_playing():
-                        await asyncio.sleep(1)
-                    vc.play(
-                        discord.FFmpegPCMAudio(
-                            executable=getFFMPEGPath(),
-                            source=intgrated(clean),
-                            options='-filter:a "volume=0.1"',
-                        )
-                    )
-                else:
-                    # 下載影片
-                    if os.name == "nt":  # Windows
-                        process = await asyncio.create_subprocess_exec(
-                            mainPath() + "/yt-dlp.exe",
-                            "-o",
-                            mainPath() + "/music/" + clean + ".%(ext)s",
-                            "-f",
-                            "m4a",
-                            url,
-                            "--playlist-items",
-                            str(i + 1),
-                            stdout=asyncio.subprocess.PIPE,
-                            stderr=asyncio.subprocess.PIPE,
-                        )
-                    else:  # Linux/Unix
-                        process = await asyncio.create_subprocess_exec(
-                            mainPath() + "/yt-dlp_linux",
-                            "-o",
-                            mainPath() + "/music/" + clean + ".%(ext)s",
-                            "-f",
-                            "m4a",
-                            url,
-                            "--playlist-items",
-                            str(i + 1),
-                            stdout=asyncio.subprocess.PIPE,
-                            stderr=asyncio.subprocess.PIPE,
-                        )
-                    stdout, stderr = await process.communicate()
-                    if process.returncode != 0:
-                        if os.name == "nt":  # Windows
-                            raise subprocess.CalledProcessError(
-                                process.returncode, "yt-dlp.exe"
-                            )
-                        else:  # Linux/Unix
-                            raise subprocess.CalledProcessError(
-                                process.returncode, "yt-dlp_linux"
-                            )
-                    if hardresetState:
-                        return
-                    await ctx.send(f"> Now Playing: {title}")
-                    vc = ctx.guild.voice_client
-                    if vc.is_playing():
-                        vc.stop()
-                    while vc.is_playing():
-                        await asyncio.sleep(1)
-                    vc.play(
-                        discord.FFmpegPCMAudio(
-                            executable=getFFMPEGPath(),
-                            source=intgrated(clean),
-                            options='-filter:a "volume=0.1"',
-                        )
-                    )
-
-                # 等待當前歌曲播放完畢
-                while vc.is_playing():
-                    await asyncio.sleep(1)
-
-        except subprocess.CalledProcessError:
-            print("> Download failed!")
-        except Exception as e:
-            await ctx.send(f"> How the fuck u make this???? : {e}")
-        return
-    try:
-        # 先獲取影片標題
-        if os.name == "nt":  # Windows
-            result = subprocess.run(
-                [mainPath() + "/yt-dlp.exe", "--get-title", url],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-        else:  # Linux/Unix
-            result = subprocess.run(
-                [mainPath() + "/yt-dlp_linux", "--get-title", url],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-        video_title = result.stdout.strip()
-        clean = clean_filename(video_title)
-
-        if "願榮光" in clean or "Glory to Hong Kong" in clean or "Glory to HK" in clean:
-            await ctx.send(
-                file=discord.File(getIMGPath() + "對健康不好喔_2-Cmch--Fa.webp")
-            )
-            return
-
-        # 檢查檔案是否已存在
-        if (
-            os.path.exists(mainPath() + "/music/" + clean + ".mp3")
-            or os.path.exists(mainPath() + "/music/" + clean + ".flac")
-            or os.path.exists(mainPath() + "/music/" + clean + ".m4a")
-        ):
-            if hardresetState:
-                return
-            await ctx.send(f"> Now Playing: {video_title}")
-            vc = ctx.guild.voice_client
-            if vc.is_playing():
-                vc.stop()
-            vc.play(
-                discord.FFmpegPCMAudio(
-                    executable=getFFMPEGPath(),
-                    source=intgrated(clean),
-                    options='-filter:a "volume=0.1"',
-                )
-            )
-            return
-
-        # 下載影片
-        if os.name == "nt":  # Windows
-            process = await asyncio.create_subprocess_exec(
-                mainPath() + "/yt-dlp.exe",
-                "-o",
-                mainPath() + "/music/" + clean + ".%(ext)s",
-                "-f",
-                "m4a",
-                url,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-        else:  # Linux/Unix
-            process = await asyncio.create_subprocess_exec(
-                mainPath() + "/yt-dlp_linux",
-                "-o",
-                mainPath() + "/music/" + clean + ".%(ext)s",
-                "-f",
-                "m4a",
-                url,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-        stdout, stderr = await process.communicate()
-        if process.returncode != 0:
-            if os.name == "nt":  # Windows
-                raise subprocess.CalledProcessError(process.returncode, "yt-dlp.exe")
-            else:  # Linux/Unix
-                raise subprocess.CalledProcessError(process.returncode, "yt-dlp_linux")
-        if hardresetState:
-            return
-        await ctx.send(f"> Now playing: {video_title}")
-        vc = ctx.guild.voice_client
-        # check is playing
-        if vc.is_playing():
-            vc.stop()
-        while vc.is_playing():
-            await asyncio.sleep(1)
-        vc.play(
-            discord.FFmpegPCMAudio(
-                executable=getFFMPEGPath(),
-                source=intgrated(clean),
-                options='-filter:a "volume=0.1"',
-            )
-        )
-
-    except subprocess.CalledProcessError as e:
-        await ctx.send("> Failed to play")
-        # 檢查是否有 stderr 輸出
-        if hasattr(e, "stderr") and e.stderr:
-            print(f"> Download failed! because: {e.stderr}")
-        else:
-            print(f"> Download failed! Return code: {e.returncode}")
-    except Exception as e:
-        print(f"> An error occurred: {e}")
-        await ctx.send(f"> How the fuck u make this???? : {e}")
+        await channel.connect()
+    else:
+        await ctx.voice_client.move_to(channel)
 
 
 @client.command()
@@ -479,35 +57,6 @@ async def leave(ctx):
         await ctx.send("Disconnected from the voice channel.")
     else:
         await ctx.send("I'm not in a voice channel.")
-
-
-@client.command()
-async def play(ctx, *, arg):
-    # Accept the entire argument, including spaces
-    if ctx.author.voice:
-        channel = ctx.author.voice.channel
-        if ctx.voice_client is None:
-            await channel.connect()
-    else:
-        return
-
-    vc = ctx.guild.voice_client
-    # Remove quotes, clean up filename
-    arg_clean = arg.strip('"')
-    if intgrated(arg_clean) is None:
-        await ctx.send("> No such that song in storage.")
-        return
-
-    vc.play(
-        discord.FFmpegPCMAudio(
-            executable=getFFMPEGPath(),
-            source=intgrated(arg_clean),
-            options='-filter:a "volume=0.1"',
-        )
-    )
-    await ctx.channel.send(
-        "> Now playing: " + removefileName(removePath(getMP3(arg_clean)))
-    )
 
 
 @client.command()
@@ -535,70 +84,6 @@ async def getPermission(ctx):
     await ctx.send("想失業就click: ", view=PermissionButton())
 
 
-@client.command()
-async def upload(ctx, link: str = None):
-    if ctx.author.voice is None:
-        return
-    if ctx.message.attachments:
-        file = ctx.message.attachments[0]
-        file_name = file.filename
-        save_path = getMP3Path() + file_name
-        await file.save(save_path)
-    # If no attachment, check for a link argument.
-    elif link is not None:
-        await ctx.send("Downloading file from link...")
-        async with aiohttp.ClientSession() as session:
-            async with session.get(link) as response:
-                if response.status == 200:
-                    data = await response.read()
-                    file_name = link.split("/")[-1] or "downloaded_file.mp3"
-                    # Replace %20 with space in file name
-                    file_name = file_name.replace("%20", " ")
-                    if (
-                        "願榮光" in file_name
-                        or "Glory to Hong Kong" in file_name
-                        or "Glory to HK" in file_name
-                    ):
-                        await ctx.send(
-                            file=discord.File(
-                                getIMGPath() + "對健康不好喔_2-Cmch--Fa.webp"
-                            )
-                        )
-                        return
-                    save_path = getMP3Path() + file_name
-                    with open(save_path, "wb") as f:
-                        f.write(data)
-                else:
-                    await ctx.send(
-                        "Failed to download the file from the provided link."
-                    )
-                    return
-    else:
-        await ctx.send(
-            "Please attach an audio file or provide a download link to upload."
-        )
-        return
-
-    # Ensure the bot is in a voice channel.
-    if ctx.voice_client is None:
-        if ctx.author.voice is None:
-            await ctx.send("You need to be in a voice channel.")
-            return
-        await ctx.author.voice.channel.connect()
-
-    vc = ctx.guild.voice_client
-    vc.play(
-        discord.FFmpegPCMAudio(
-            executable=getFFMPEGPath(),
-            source=save_path,
-            options='-filter:a "volume=0.1"',
-        ),
-        after=lambda e: cleanup_file(save_path),
-    )
-
-    await ctx.send(f"> Now playing: {removefileName(file_name)}")
-
-
 def cleanup_file(path):
     try:
         # os.remove(path)
@@ -608,65 +93,6 @@ def cleanup_file(path):
         print(f"PermissionError: Could not remove {path} because it is still in use.")
     except Exception as e:
         print(f"Error cleaning up file: {e}")
-
-
-@client.command()
-async def stop(ctx):
-    if ctx.voice_client and ctx.voice_client.is_playing():
-        ctx.voice_client.stop()
-        await ctx.send("Stopped the music.")
-    else:
-        await ctx.send("No music is currently playing.")
-
-
-@client.command()
-async def playAll(ctx):
-    music_dir = getMP3Path()
-    files = [f for f in os.listdir(music_dir) if f.endswith((".mp3", ".flac", ".m4a"))]
-    if not files:
-        await ctx.send("> No music files found.")
-        return
-
-    if ctx.voice_client is None:
-        if ctx.author.voice is None:
-            await ctx.send("> You need to be in a voice channel.")
-            return
-        await ctx.author.voice.channel.connect()
-
-    vc = ctx.guild.voice_client
-    for file in files:
-        file_path = os.path.join(music_dir, file)
-        await ctx.send("> Now playing: " + removefileName(file))
-        vc.play(
-            discord.FFmpegPCMAudio(
-                executable=getFFMPEGPath(),
-                source=file_path,
-                options='-filter:a "volume=0.1"',
-            )
-        )
-        while vc.is_playing():
-            await asyncio.sleep(1)
-    await ctx.send("> End playing all music files.")
-
-
-@client.command()
-async def list(ctx):
-    music_dir = getMP3Path()
-    files = [f for f in os.listdir(music_dir) if f.endswith((".mp3", ".flac", ".m4a"))]
-    names = [os.path.splitext(f)[0] for f in files]
-    if names:
-        numbered = [f"{i + 1}. {name}" for i, name in enumerate(names)]
-        # send as txt file
-        # if len(numbered) >= 1950:
-        with open("music_list.txt", "w", encoding="utf-8") as f:
-            f.write("\n".join(numbered))
-        await ctx.send(file=discord.File("music_list.txt"))
-        # Clean up the file after sending
-        os.remove("music_list.txt")
-        # else:
-        # await ctx.send("```Song List:\n" + "\n".join(numbered)+ "```")
-    else:
-        await ctx.send("No music files found.")
 
 
 @client.command()
@@ -696,13 +122,12 @@ async def on_message(message):
     """
     if message.author == client.user:
         return
-    
+
     # Try to handle the message with our rule-based system
     if message_handler and await message_handler.handle_message(message):
         return  # Message was handled by a rule
-    
+
     # If no rule handled the message, process commands
     await client.process_commands(message)
-
 
 client.run(DISCORD_TOKEN)
