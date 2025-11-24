@@ -101,7 +101,12 @@ async def hardreset(ctx):
     if ctx.voice_client:
         await ctx.voice_client.disconnect()
     await client.close()
-    os.execv(sys.executable, [sys.executable, __file__])
+    abs_path = os.path.abspath(__file__)
+    if os.name == 'nt':
+        subprocess.Popen([os.path.join(os.path.dirname(abs_path), '..', 'run.bat')], shell=True)
+    else:
+        subprocess.Popen(['bash', os.path.join(os.path.dirname(abs_path), '..', 'run.sh')])
+    os._exit(0)
 
 @client.command()
 async def join(ctx):
@@ -162,9 +167,50 @@ def decode_subprocess_output(output_bytes):
         pass
     
     return result
+@client.command()
+async def checkytdlp(ctx):
+    nt_ver = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+    linux_ver = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
+    try:
+        if os.name == 'nt':  # Windows
+            #check yt-dlp exists
+            if os.path.exists(mainPath() + '/yt-dlp.exe'):
+                os.remove(mainPath() + '/yt-dlp.exe')
+                #download latest version
+                subprocess.run(['curl', '-L', nt_ver, '-o', mainPath() + '/yt-dlp.exe'], check=True)
+                version_result = subprocess.run([mainPath() + '/yt-dlp.exe', '--version'], capture_output=True, text=True, check=True)
+                version = version_result.stdout.strip()
+        else:  # Linux/Unix
+            if os.path.exists(mainPath() + '/yt-dlp_linux'):
+                os.remove(mainPath() + '/yt-dlp_linux')
+                #download latest version
+                subprocess.run(['curl', '-L', linux_ver, '-o', mainPath() + '/yt-dlp_linux'], check=True)
+                #make it executable
+                os.chmod(mainPath() + '/yt-dlp_linux', 0o755)
+                version_result = subprocess.run([mainPath() + '/yt-dlp_linux', '--version'], capture_output=True, text=True, check=True)
+                version = version_result.stdout.strip()
+    except subprocess.CalledProcessError:
+        await ctx.send("> yt-dlp is not installed or not found.")
+        if os.name == 'nt':
+            os.remove(mainPath() + '/yt-dlp.exe')
+            #download latest version
+            subprocess.run(['curl', '-L', nt_ver, '-o', mainPath() + '/yt-dlp.exe'], check=True)
+            version_result = subprocess.run([mainPath() + '/yt-dlp.exe', '--version'], capture_output=True, text=True, check=True)
+            version = version_result.stdout.strip()
+        elif os.name != 'nt':
+            os.remove(mainPath() + '/yt-dlp_linux')
+            #download latest version
+            subprocess.run(['curl', '-L', linux_ver, '-o', mainPath() + '/yt-dlp_linux'], check=True)
+            #make it executable
+            os.chmod(mainPath() + '/yt-dlp_linux', 0o755)
+            version_result = subprocess.run([mainPath() + '/yt-dlp_linux', '--version'], capture_output=True, text=True, check=True)
+            version = version_result.stdout.strip()
+    await ctx.send(f"> yt-dlp is up to date. Current version: {version}")
+
+    
 
 @client.command()
-async def yt(ctx, url: str):
+async def play(ctx, url: str):
     if ctx.author.voice is None:
         return
     if ctx.voice_client is None:
@@ -233,6 +279,7 @@ async def yt(ctx, url: str):
                         vc.stop()
                     while vc.is_playing():
                         await asyncio.sleep(1)
+                    await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=title))
                     vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
                 else:
                     # 下載影片
@@ -270,6 +317,7 @@ async def yt(ctx, url: str):
                         vc.stop()
                     while vc.is_playing():
                         await asyncio.sleep(1)
+                    await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=title))
                     vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
                 
                 # 等待當前歌曲播放完畢
@@ -312,6 +360,7 @@ async def yt(ctx, url: str):
             vc = ctx.guild.voice_client
             if vc.is_playing():
                 vc.stop()
+            await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=video_title))
             vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
             return
 
@@ -349,6 +398,7 @@ async def yt(ctx, url: str):
             vc.stop()
         while vc.is_playing():
             await asyncio.sleep(1)
+        await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=video_title))
         vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(),source=intgrated(clean),options='-filter:a "volume=0.1"'))
         
     except subprocess.CalledProcessError as e:
@@ -373,7 +423,7 @@ async def leave(ctx):
         await ctx.send("I'm not in a voice channel.")
 
 @client.command()
-async def play(ctx, *, arg):
+async def playList(ctx, *, arg):
     # Accept the entire argument, including spaces
     if ctx.author.voice:
         channel = ctx.author.voice.channel
@@ -388,7 +438,7 @@ async def play(ctx, *, arg):
     if(intgrated(arg_clean) is None):
         await ctx.send("> No such that song in storage.")
         return
-    
+    await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=arg_clean))
     vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(arg_clean), options='-filter:a "volume=0.1"'))
     await ctx.channel.send("> Now playing: " + removefileName(removePath(getMP3(arg_clean)))
     )
@@ -448,6 +498,7 @@ async def upload(ctx, link: str = None):
         await ctx.author.voice.channel.connect()
         
     vc = ctx.guild.voice_client
+    await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=save_path))
     vc.play(discord.FFmpegPCMAudio(
         executable=getFFMPEGPath(),
         source=save_path,
@@ -492,6 +543,7 @@ async def playAll(ctx):
     for file in files:
         file_path = os.path.join(music_dir, file)
         await ctx.send("> Now playing: " + removefileName(file))
+        await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=removefileName(file)))
         vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=file_path, options='-filter:a "volume=0.1"'))
         while vc.is_playing():
             await asyncio.sleep(1)
@@ -523,12 +575,12 @@ async def help(ctx):
         "Available commands:\n"
         "> !join - Join your voice channel.\n"
         "> !leave - Leave the voice channel.\n"
-        "> !play <filename> - Play a music file (without extension).\n"
+        "> !playList <filename> - Play a music file (without extension).\n"
         "> !upload [link] / insert a file - Upload a music file or download from a link.\n"
         "> !stop - Stop the currently playing music.\n"
         "> !list - List available music files.\n"
         "> !help - Show this help message.\n"
-        "> !yt <YouTube URL> - Download and play a YouTube video.\n"
+        "> !play <YouTube URL> - Download and play a YouTube video.\n"
         ">>> !hardreset - Restart the bot completely.\n"
         ">>> !playAll - Play all music files in the music directory.\n"
         "   !stop - Stop current play all song list and skip to next song\n"
