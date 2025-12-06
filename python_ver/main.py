@@ -5,11 +5,14 @@ from discord.ext import commands
 from datetime import datetime
 import aiohttp
 #from command.join import Join
+import socket
 import random
 import asyncio
 import subprocess
 import re
 import sys
+import torch
+from Qwen import ask
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -61,7 +64,8 @@ def getIMGPath():
 def removePath(input):
     if input.startswith(getMP3Path()):
         return input[len(getMP3Path()):]
-    return input
+    else:
+        return input
 def intgrated(input):
     return getMP3Path() + removePath(getMP3(input))
 def removefileName(input):
@@ -212,21 +216,167 @@ async def checkytdlp(ctx):
 @client.command()
 async def play(ctx, url: str):
     if ctx.author.voice is None:
-        return
-    if ctx.voice_client is None:
-        await ctx.author.voice.channel.connect()
-    if blacklist(url):
-        await ctx.send(file=discord.File(getIMGPath() + "對健康不好喔_2-Cmch--Fa.webp"))
+        await ctx.send(file=discord.File(getIMGPath() + "幹嘛-CStDUUrz.webp"))
+        await ctx.send("> You need to be in a voice channel.")
         return
     if not url.startswith("https://www.youtube.com/watch") and not url.startswith("https://youtu.be/"):
-        return
-    if url.__contains__("list="): 
+        await playList(ctx,arg=url)
+    else:
+        if ctx.voice_client is None:
+            await ctx.author.voice.channel.connect()
+        if blacklist(url):
+            await ctx.send(file=discord.File(getIMGPath() + "對健康不好喔_2-Cmch--Fa.webp"))
+            return
+        if url.__contains__("list="): 
+            try:
+                if os.name == 'nt':  # Windows
+                    process = await asyncio.create_subprocess_exec(
+                        mainPath() + '/yt-dlp.exe',
+                        '--get-title',
+                        '--flat-playlist',
+                        url,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                else:  # Linux/Unix
+                    process = await asyncio.create_subprocess_exec(
+                        mainPath() + '/yt-dlp_linux',
+                        '--get-title',
+                        '--flat-playlist',
+                        url,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                stdout, stderr = await process.communicate()
+                if process.returncode != 0:
+                    if os.name == 'nt':  # Windows
+                        raise subprocess.CalledProcessError(process.returncode, 'yt-dlp')
+                    else:  # Linux/Unix
+                        raise subprocess.CalledProcessError(process.returncode, 'yt-dlp_linux')
+                
+                video_title = decode_subprocess_output(stdout)
+                #use array to store the title
+                video_titles = video_title.split('\n')
+                titleName = ""
+                for i, title in enumerate(video_titles):
+                    titleName += str(i + 1) + ". " + title + "\n"
+                titleName += "```"
+
+                if("願榮光" in titleName or "Glory to Hong Kong" in titleName or "Glory to HK" in titleName):
+                    await ctx.send(file=discord.File(getIMGPath() + "對健康不好喔_2-Cmch--Fa.webp"))
+                    return
+                if(len(titleName) >= 2000):
+                    await ctx.send(f"> List too long out of discord message limit")
+                else:
+                    await ctx.send(f"```List of Song:\n{titleName}")
+
+                # 逐一播放每首歌
+                for i, title in enumerate(video_titles):
+                    clean = clean_filename(title)
+                    
+                    #檢查檔案是否已存在
+                    if os.path.exists(mainPath() + '/music/' + clean + '.mp3') or \
+                    os.path.exists(mainPath() + '/music/' + clean + '.flac') or \
+                    os.path.exists(mainPath() + '/music/' + clean + '.m4a'):
+                        if(hardresetState):
+                            return
+                        await ctx.send(f"> Now Playing: {title}")
+                        vc = ctx.guild.voice_client
+                        if vc.is_playing():
+                            vc.stop()
+                        while vc.is_playing():
+                            await asyncio.sleep(1)
+                        await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=title))
+                        vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
+                    else:
+                        # 下載影片
+                        if os.name == 'nt':  # Windows
+                            process = await asyncio.create_subprocess_exec(
+                                mainPath() + '/yt-dlp.exe',
+                                '-o', mainPath() + '/music/' + clean + '.%(ext)s',
+                                '-f', 'm4a',
+                                url,
+                                '--playlist-items', str(i+1),
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE
+                            )
+                        else:  # Linux/Unix
+                            process = await asyncio.create_subprocess_exec(
+                                mainPath() + '/yt-dlp_linux',
+                                '-o', mainPath() + '/music/' + clean + '.%(ext)s',
+                                '-f', 'm4a',
+                                url,
+                                '--playlist-items', str(i+1),
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE
+                            )
+                        stdout, stderr = await process.communicate()
+                        if process.returncode != 0:
+                            if os.name == 'nt':  # Windows
+                                raise subprocess.CalledProcessError(process.returncode, 'yt-dlp.exe')
+                            else:  # Linux/Unix
+                                raise subprocess.CalledProcessError(process.returncode, 'yt-dlp_linux')
+                        if(hardresetState):
+                            return
+                        await ctx.send(f"> Now Playing: {title}")
+                        vc = ctx.guild.voice_client
+                        if vc.is_playing():
+                            vc.stop()
+                        while vc.is_playing():
+                            await asyncio.sleep(1)
+                        await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=title))
+                        vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
+                    
+                    # 等待當前歌曲播放完畢
+                    while vc.is_playing():
+                        await asyncio.sleep(1)
+
+            except subprocess.CalledProcessError:
+                print("> Download failed!")
+            except Exception as e:
+                await ctx.send(f"> How the fuck u make this???? : {e}")
+            return
         try:
+            # 先獲取影片標題
+            if(os.name == 'nt'):  # Windows
+                result = subprocess.run([
+                    mainPath() + '/yt-dlp.exe',
+                    '--get-title',
+                    url
+                ], capture_output=True, text=True, check=True)
+            else:  # Linux/Unix
+                result = subprocess.run([
+                    mainPath() + '/yt-dlp_linux',
+                    '--get-title',
+                    url
+                ], capture_output=True, text=True, check=True)
+            video_title = result.stdout.strip()
+            clean = clean_filename(video_title)
+
+            if("願榮光" in clean or "Glory to Hong Kong" in clean or "Glory to HK" in clean):
+                await ctx.send(file=discord.File(getIMGPath() + "對健康不好喔_2-Cmch--Fa.webp"))
+                return
+
+            #檢查檔案是否已存在
+            if os.path.exists(mainPath() + '/music/' + clean + '.mp3') or \
+            os.path.exists(mainPath() + '/music/' + clean + '.flac') or \
+            os.path.exists(mainPath() + '/music/' + clean + '.m4a'):
+                if(hardresetState):
+                    return
+                await ctx.send(f"> Now Playing: {video_title}")
+                vc = ctx.guild.voice_client
+                if vc.is_playing():
+                    vc.stop()
+                await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=video_title))
+                vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
+                return
+
+            # 下載影片
             if os.name == 'nt':  # Windows
                 process = await asyncio.create_subprocess_exec(
                     mainPath() + '/yt-dlp.exe',
-                    '--get-title',
-                    '--flat-playlist',
+                    '-o', mainPath() + '/music/' + clean + '.%(ext)s',
+                    '-f', 'm4a',
                     url,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
@@ -234,8 +384,8 @@ async def play(ctx, url: str):
             else:  # Linux/Unix
                 process = await asyncio.create_subprocess_exec(
                     mainPath() + '/yt-dlp_linux',
-                    '--get-title',
-                    '--flat-playlist',
+                    '-o', mainPath() + '/music/' + clean + '.%(ext)s',
+                    '-f', 'm4a',
                     url,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
@@ -243,174 +393,31 @@ async def play(ctx, url: str):
             stdout, stderr = await process.communicate()
             if process.returncode != 0:
                 if os.name == 'nt':  # Windows
-                    raise subprocess.CalledProcessError(process.returncode, 'yt-dlp')
+                    raise subprocess.CalledProcessError(process.returncode, 'yt-dlp.exe')
                 else:  # Linux/Unix
                     raise subprocess.CalledProcessError(process.returncode, 'yt-dlp_linux')
-            
-            video_title = decode_subprocess_output(stdout)
-            #use array to store the title
-            video_titles = video_title.split('\n')
-            titleName = ""
-            for i, title in enumerate(video_titles):
-                titleName += str(i + 1) + ". " + title + "\n"
-            titleName += "```"
-
-            if("願榮光" in titleName or "Glory to Hong Kong" in titleName or "Glory to HK" in titleName):
-                await ctx.send(file=discord.File(getIMGPath() + "對健康不好喔_2-Cmch--Fa.webp"))
-                return
-            if(len(titleName) >= 2000):
-                await ctx.send(f"> List too long out of discord message limit")
-            else:
-                await ctx.send(f"```List of Song:\n{titleName}")
-
-            # 逐一播放每首歌
-            for i, title in enumerate(video_titles):
-                clean = clean_filename(title)
-                
-                #檢查檔案是否已存在
-                if os.path.exists(mainPath() + '/music/' + clean + '.mp3') or \
-                   os.path.exists(mainPath() + '/music/' + clean + '.flac') or \
-                   os.path.exists(mainPath() + '/music/' + clean + '.m4a'):
-                    if(hardresetState):
-                        return
-                    await ctx.send(f"> Now Playing: {title}")
-                    vc = ctx.guild.voice_client
-                    if vc.is_playing():
-                        vc.stop()
-                    while vc.is_playing():
-                        await asyncio.sleep(1)
-                    await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=title))
-                    vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
-                else:
-                    # 下載影片
-                    if os.name == 'nt':  # Windows
-                        process = await asyncio.create_subprocess_exec(
-                            mainPath() + '/yt-dlp.exe',
-                            '-o', mainPath() + '/music/' + clean + '.%(ext)s',
-                            '-f', 'm4a',
-                            url,
-                            '--playlist-items', str(i+1),
-                            stdout=asyncio.subprocess.PIPE,
-                            stderr=asyncio.subprocess.PIPE
-                        )
-                    else:  # Linux/Unix
-                        process = await asyncio.create_subprocess_exec(
-                            mainPath() + '/yt-dlp_linux',
-                            '-o', mainPath() + '/music/' + clean + '.%(ext)s',
-                            '-f', 'm4a',
-                            url,
-                            '--playlist-items', str(i+1),
-                            stdout=asyncio.subprocess.PIPE,
-                            stderr=asyncio.subprocess.PIPE
-                        )
-                    stdout, stderr = await process.communicate()
-                    if process.returncode != 0:
-                        if os.name == 'nt':  # Windows
-                            raise subprocess.CalledProcessError(process.returncode, 'yt-dlp.exe')
-                        else:  # Linux/Unix
-                            raise subprocess.CalledProcessError(process.returncode, 'yt-dlp_linux')
-                    if(hardresetState):
-                        return
-                    await ctx.send(f"> Now Playing: {title}")
-                    vc = ctx.guild.voice_client
-                    if vc.is_playing():
-                        vc.stop()
-                    while vc.is_playing():
-                        await asyncio.sleep(1)
-                    await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=title))
-                    vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
-                
-                # 等待當前歌曲播放完畢
-                while vc.is_playing():
-                    await asyncio.sleep(1)
-
-        except subprocess.CalledProcessError:
-            print("> Download failed!")
-        except Exception as e:
-            await ctx.send(f"> How the fuck u make this???? : {e}")
-        return
-    try:
-        # 先獲取影片標題
-        if(os.name == 'nt'):  # Windows
-            result = subprocess.run([
-                mainPath() + '/yt-dlp.exe',
-                '--get-title',
-                url
-            ], capture_output=True, text=True, check=True)
-        else:  # Linux/Unix
-            result = subprocess.run([
-                mainPath() + '/yt-dlp_linux',
-                '--get-title',
-                url
-            ], capture_output=True, text=True, check=True)
-        video_title = result.stdout.strip()
-        clean = clean_filename(video_title)
-
-        if("願榮光" in clean or "Glory to Hong Kong" in clean or "Glory to HK" in clean):
-            await ctx.send(file=discord.File(getIMGPath() + "對健康不好喔_2-Cmch--Fa.webp"))
-            return
-
-        #檢查檔案是否已存在
-        if os.path.exists(mainPath() + '/music/' + clean + '.mp3') or \
-           os.path.exists(mainPath() + '/music/' + clean + '.flac') or \
-           os.path.exists(mainPath() + '/music/' + clean + '.m4a'):
             if(hardresetState):
                 return
-            await ctx.send(f"> Now Playing: {video_title}")
+            await ctx.send(f"> Now playing: [{video_title}]({url})")
             vc = ctx.guild.voice_client
+            #check is playing
             if vc.is_playing():
                 vc.stop()
+            while vc.is_playing():
+                await asyncio.sleep(1)
             await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=video_title))
-            vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
-            return
-
-        # 下載影片
-        if os.name == 'nt':  # Windows
-            process = await asyncio.create_subprocess_exec(
-                mainPath() + '/yt-dlp.exe',
-                '-o', mainPath() + '/music/' + clean + '.%(ext)s',
-                '-f', 'm4a',
-                url,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-        else:  # Linux/Unix
-            process = await asyncio.create_subprocess_exec(
-                mainPath() + '/yt-dlp_linux',
-                '-o', mainPath() + '/music/' + clean + '.%(ext)s',
-                '-f', 'm4a',
-                url,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-        stdout, stderr = await process.communicate()
-        if process.returncode != 0:
-            if os.name == 'nt':  # Windows
-                raise subprocess.CalledProcessError(process.returncode, 'yt-dlp.exe')
-            else:  # Linux/Unix
-                raise subprocess.CalledProcessError(process.returncode, 'yt-dlp_linux')
-        if(hardresetState):
-            return
-        await ctx.send(f"> Now playing: {video_title}")
-        vc = ctx.guild.voice_client
-        #check is playing
-        if vc.is_playing():
-            vc.stop()
-        while vc.is_playing():
-            await asyncio.sleep(1)
-        await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=video_title))
-        vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(),source=intgrated(clean),options='-filter:a "volume=0.1"'))
-        
-    except subprocess.CalledProcessError as e:
-        await ctx.send("> Failed to play")
-        # 檢查是否有 stderr 輸出
-        if hasattr(e, 'stderr') and e.stderr:
-            print(f"> Download failed! because: {e.stderr}")
-        else:
-            print(f"> Download failed! Return code: {e.returncode}")
-    except Exception as e:
-        print(f"> An error occurred: {e}")
-        await ctx.send(f"> How the fuck u make this???? : {e}")
+            vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(),source=intgrated(clean),options='-filter:a "volume=0.1"'))
+            
+        except subprocess.CalledProcessError as e:
+            await ctx.send("> Failed to play")
+            # 檢查是否有 stderr 輸出
+            if hasattr(e, 'stderr') and e.stderr:
+                print(f"> Download failed! because: {e.stderr}")
+            else:
+                print(f"> Download failed! Return code: {e.returncode}")
+        except Exception as e:
+            print(f"> An error occurred: {e}")
+            await ctx.send(f"> How the fuck u make this???? : {e}")
 
 @client.command()
 async def leave(ctx):
@@ -430,6 +437,8 @@ async def playList(ctx, *, arg):
         if ctx.voice_client is None:
             await channel.connect()
     else:
+        await ctx.send(file=discord.File(getIMGPath() + "幹嘛-CStDUUrz.webp"))
+        await ctx.send("> You need to be in a voice channel.")
         return
 
     vc = ctx.guild.voice_client
@@ -581,12 +590,40 @@ async def help(ctx):
         "> !list - List available music files.\n"
         "> !help - Show this help message.\n"
         "> !play <YouTube URL> - Download and play a YouTube video.\n"
+        "> !ai <any string> - Ask a question to the AI.\n"
         ">>> !hardreset - Restart the bot completely.\n"
         ">>> !playAll - Play all music files in the music directory.\n"
         "   !stop - Stop current play all song list and skip to next song\n"
     )
     await ctx.send(f"{help_text}", ephemeral=True)
-    
+@client.command()
+async def ai(ctx, *, question: str):
+    sented = await ctx.send(f"聞著我那又熱又香脆的{torch.cuda.get_device_name(0)}思考中")
+    await asyncio.sleep(5)
+    response = await ask("/nothink /response as traditional chinese /response no longer than 2000 word | Here is user input:" + question)
+    await sented.edit(content=f"{response}")
+
+@client.command()
+async def isServerDown(ctx):
+    #check net.kinglingmk1.com and pve.kinglingmk1.com status
+    def check_server(host, port):
+        try:
+            with socket.create_connection((host, port), timeout=5):
+                return True
+        except (socket.timeout, ConnectionRefusedError, OSError):
+            return False
+    servers = {
+        "net.kinglingmk1.com": 443,
+        "pve.kinglingmk1.com": 8006
+    }
+    name = ["Headscale", "PVE"]
+    status_messages = []
+    i=0
+    for server, port in servers.items():
+        status = ":green_circle:  Online" if check_server(server, port) else ":red_circle: Offline"
+        status_messages.append(f"{name[i]}: {status}")
+        i += 1
+    await ctx.send("\n".join(status_messages))
 
 @client.event
 async def on_message(message):
