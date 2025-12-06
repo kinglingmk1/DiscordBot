@@ -596,12 +596,21 @@ async def help(ctx):
         "   !stop - Stop current play all song list and skip to next song\n"
     )
     await ctx.send(f"{help_text}", ephemeral=True)
+isqueue = False
 @client.command()
 async def ai(ctx, *, question: str):
+    global isqueue
+    while True:
+        if isqueue is False:
+            break
+        else:
+            await asyncio.sleep(1)
+    isqueue = True
     sented = await ctx.send(f"聞著我那又熱又香脆的{torch.cuda.get_device_name(0)}思考中")
     await asyncio.sleep(5)
     response = await ask("/nothink /response as traditional chinese /response no longer than 2000 word | Here is user input:" + question)
     await sented.edit(content=f"{response}")
+    isqueue = False
 
 @client.command()
 async def isServerDown(ctx):
@@ -711,4 +720,3 @@ async def on_message(message):
         return
 
     await client.process_commands(message)
-client.run("TOKEN")
