@@ -633,6 +633,93 @@ async def isServerDown(ctx):
         status_messages.append(f"{name[i]}: {status}")
         i += 1
     await ctx.send("\n".join(status_messages))
+@client.event
+async def go(ctx):
+    if ctx.author == client.user:
+            return
+    global isGo
+    if isGo == False:
+        isGo = True
+        imgs = [
+            "之前拋棄了我，現在還有臉回來-BKvy-NQ4.webp",
+            "之前明明就不肯和我組樂團-CVo0-7ju.webp",
+            "太棒了，爽世同學LOVE.jpg",
+            "太好了-Bny2y6a-.webp",
+            "太好了3.jpg",
+            "叫我嗎-Crz6Q_da.webp",
+            "我一直非常期待能和各位見面.jpg",
+            "來了-hlcwWAQl.webp",
+            "真讓人期待.jpg",
+            "這種事早晚會發生的-DQBmYna4.webp",
+            "這樣啊.jpg",
+            "愛音泡澡.jpg",
+            "愛音愛心.jpg",
+            "讓我們一起迷失吧.jpg"
+        ]
+        img = random.choice(imgs)
+        await ctx.send(file=discord.File(getIMGPath() + img))
+        await ctx.send("還在Go")
+
+
+@client.event
+async def stfu(ctx):
+    #if is bot self message, ignore
+    if ctx.author == client.user:
+        return
+    global isGo
+    if isGo:
+        isGo = False
+        imgs = [
+            "什麼意思.jpg",
+            "什麼意思-D6R5zlNQ.webp",
+            "今後不要再和我扯上關係了.jpg",
+            "只要是我能做的，我什麼都願意做.jpg",
+            "它沒有結束.jpg",
+            "立希_蛤.jpg",
+            "我早知道會這樣了.jpg",
+            "我除了這世界已經一無所有了-CJ8djB3w.webp",
+            "我會繼續做自己的夥伴.jpg",
+            "求求妳.jpg",
+            "那些我根本就不在乎-BhvdDSVI.webp",
+            "那些全都是騙人的.jpg",
+            "妳是抱著多大的覺悟說出這種話的.jpg",
+            "妳們就請便吧.jpg",
+            "妳真的要離開了嗎-BmZxGW1h.webp",
+            "怎麼會...簡直不敢相信.jpg",
+            "為什麼妳不肯站在我這邊-BNykkCh6.webp",
+            "差勁.jpg",
+            "差勁2.jpg",
+            "真不敢相信.jpg",
+            "真是會虛情假意呢.jpg",
+            "真是讓人活得難受的世界啊.jpg",
+            "做事笨拙總是徒勞.jpg",
+            "動機太不單純了.jpg",
+            "夠了夠了夠了-DDbwwW2e.webp",
+            "從來不覺得玩樂團開心過.jpg",
+            "掛斷了-LjNF4ksX.webp",
+            "爽世驚訝.jpg",
+            "這種事早晚會發生的-DQBmYna4.webp",
+            "掰掰.jpg",
+            "愛音_蛤.jpg",
+            "愛音驚訝.jpg",
+            "感謝您讓我佔用的寶貴時間.jpg",
+            "態度好差喔.jpg",
+            "還有這樣太不負責了吧.jpg"
+        ]
+        img = random.choice(imgs)
+        await ctx.send(file=discord.File(getIMGPath() + img))
+        await ctx.send("不再Go了")
+    else:
+        imgs = [
+            "之前拋棄了我，現在還有臉回來-BKvy-NQ4.webp",
+            "之前明明就不肯和我組樂團-CVo0-7ju.webp",
+            "叫我嗎-Crz6Q_da.webp",
+            "這種事早晚會發生的-DQBmYna4.webp",
+            "這樣啊.jpg",
+        ]
+        img = random.choice(imgs)
+        await ctx.send(file=discord.File(getIMGPath() + img))
+        await ctx.send("還在Go")
 
 @client.event
 async def on_message(message):
