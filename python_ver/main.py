@@ -633,7 +633,7 @@ async def isServerDown(ctx):
         status_messages.append(f"{name[i]}: {status}")
         i += 1
     await ctx.send("\n".join(status_messages))
-@client.event
+@client.command()
 async def go(ctx):
     if ctx.author == client.user:
             return
@@ -661,7 +661,7 @@ async def go(ctx):
         await ctx.send("還在Go")
 
 
-@client.event
+@client.command()
 async def stfu(ctx):
     #if is bot self message, ignore
     if ctx.author == client.user:
@@ -728,6 +728,8 @@ async def on_message(message):
     content = message.content
     # If message contains "一輩子" or "一世", send one of two images.
     if "一輩子" in content or "一世" in content:
+        if isGo == False:
+            return
         n = random.randint(0, 1)
         if n == 0:
             await message.channel.send(file=discord.File(getIMGPath() + "畢竟這是一輩子的事.jpg"))
@@ -737,6 +739,8 @@ async def on_message(message):
 
     # If message contains any negative keywords:
     if any(word in content for word in ["不行", "不能", "不可以", "不要", "不想", "dame", "だめ"]) or content in ["No", "no", "NO", "Not", "not", "NOT"]:
+        if isGo == False:
+            return
         n = random.randint(0, 1)
         if n == 0:
             await message.channel.send(file=discord.File(getIMGPath()+"不行.jpg"))
@@ -746,6 +750,8 @@ async def on_message(message):
 
     # If message contains "春日影"
     if "春日影" in content:
+        if isGo == False:
+            return
         await message.channel.send(file=discord.File(getIMGPath()+"為什麼要演奏春日影.jpg"))
         # Here you might join a voice channel if desired.
         if message.content.startswith("!"):
@@ -755,22 +761,28 @@ async def on_message(message):
 
     # If message contains "go" (any case variant)
     if content in ["go", "Go", "GO", "gO","去"]:
-        if isGo:
-            await message.channel.send("還在Go 還在Go")
-            await message.channel.send(file=discord.File(getIMGPath()+"我也一樣.jpg"))
+        if isGo == False:
             return
+        await message.channel.send("還在Go 還在Go")
+        await message.channel.send(file=discord.File(getIMGPath()+"我也一樣.jpg"))
         return
 
     # If message contains "Me too" variants
     if any(word in content for word in ["Me too", "me too", "我也是", "我也是啊", "我也一樣", "我也是呀","me2"]):
+        if isGo == False:
+            return
         await message.channel.send(file=discord.File(getIMGPath()+"我也一樣.jpg"))
         return
 
     # If message contains any variants of "Mujica"
     if any(word in content for word in ["Mujica", "mujica", "ムヒカ", "穆希卡", "ミュヒカ","母鷄卡"]):
+        if isGo == False:
+            return
         await message.channel.send(file=discord.File(getIMGPath()+"現在正是復權的時刻.jpg"))
         return
     if content in ["對健康不好", "不健康", "不健康的", "對健康不好啊", "對健康不好嗎", "不健康嗎", "不健康的嗎", "對健康不好喔", "對健康不好啊喔", "對健康不好啊喔嗎"]:
+        if isGo == False:
+            return
         imgs = [
             "對健康不好喔_2-Cmch--Fa.webp",
             "對健康不好喔_3-Cpm4dn3P.webp",
@@ -781,6 +793,8 @@ async def on_message(message):
         return
 
     if content in ["豐川集團", "TGW", "Togawa Group", "TGWG", "Togawa", "豐川集團TGW", "豐川集團TGWG", "豐川集團Togawa Group"]:
+        if isGo == False:
+            return
         await message.channel.send(file=discord.File(getIMGPath()+"豐川集團.gif"))
         return
 
