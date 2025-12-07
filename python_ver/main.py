@@ -12,7 +12,10 @@ import subprocess
 import re
 import sys
 import torch
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from Qwen import ask
+executor = ThreadPoolExecutor(max_workers=2)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -24,7 +27,6 @@ hardresetState = False
 def mainPath():
     return os.path.dirname(os.path.abspath(__file__))
 def getMP3(input):
-
     music_dir = getMP3Path()
     mp3_path = os.path.join(music_dir, input + ".mp3")
     flac_path = os.path.join(music_dir, input + ".flac")
@@ -600,17 +602,24 @@ isqueue = False
 @client.command()
 async def ai(ctx, *, question: str):
     global isqueue
-    while True:
-        if isqueue is False:
-            break
-        else:
-            await asyncio.sleep(1)
+    
+    # Wait if queue is busy
+    while isqueue:
+        await asyncio.sleep(1)
+    
     isqueue = True
     sented = await ctx.send(f"聞著我那又熱又香脆的{torch.cuda.get_device_name(0)}思考中")
-    await asyncio.sleep(5)
-    response = await ask("/nothink /response as traditional chinese /response no longer than 2000 word | Here is user input:" + question)
-    await sented.edit(content=f"{response}")
-    isqueue = False
+    
+    try:
+        # Run the blocking AI function in a separate thread
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(executor, ask, question)
+        await sented.edit(content=f"{response}")
+    except Exception as e:
+        await sented.edit(content=f"Error: {e}")
+    finally:
+        isqueue = False
+
 
 @client.command()
 async def isServerDown(ctx):
