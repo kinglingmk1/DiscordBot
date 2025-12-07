@@ -13,6 +13,7 @@ import re
 import sys
 import torch
 import asyncio
+import queue
 from concurrent.futures import ThreadPoolExecutor
 from Qwen import ask
 executor = ThreadPoolExecutor(max_workers=2)
@@ -95,8 +96,7 @@ def blacklist(input):
 
 @client.event
 async def on_ready():
-    #for cog in COGS:
-    #    await client.add_cog(cog)
+    await client.tree.sync()
     print(f"目前登入身份 --> {client.user}" + " 使用系統: " + os.name)
 
 @client.command()
@@ -592,31 +592,72 @@ async def help(ctx):
         "> !list - List available music files.\n"
         "> !help - Show this help message.\n"
         "> !play <YouTube URL> - Download and play a YouTube video.\n"
-        "> !ai <any string> - Ask a question to the AI.\n"
+        "> /ai <any string> - Ask a question to the AI.\n"
         ">>> !hardreset - Restart the bot completely.\n"
         ">>> !playAll - Play all music files in the music directory.\n"
         "   !stop - Stop current play all song list and skip to next song\n"
     )
     await ctx.send(f"{help_text}", ephemeral=True)
+
+# Replace the queue initialization
+AIqueue = []  # Change from queue.Queue() to list
 isqueue = False
-@client.command()
-async def ai(ctx, *, question: str):
-    global isqueue
+
+@client.tree.command(name="ai", description="Ask a question to the AI")
+async def ai_slash(interaction: discord.Interaction, question: str):
+    global isqueue, AIqueue
     
-    # Wait if queue is busy
-    while isqueue:
+    # Defer the response as ephemeral
+    await interaction.response.defer(ephemeral=True)
+    
+    # Add to queue - store as dictionary
+    AIqueue.append({"interaction": interaction, "question": question})
+    
+    # Calculate initial position (queue size when added)
+    initial_position = len(AIqueue)
+    
+    # Send initial ephemeral message
+    await interaction.followup.send(f"Initializing... (Position in queue: {initial_position})", ephemeral=True)
+    
+    # Wait in queue - keep checking position
+    last_position = initial_position
+    while True:
+        # Find this interaction's position in the queue
+        try:
+            my_position = next(i + 1 for i, item in enumerate(AIqueue) if item["interaction"].id == interaction.id)
+            
+            # If we're first in queue and nothing is processing, break
+            if my_position == 1 and not isqueue:
+                break
+            
+            # Update position display if changed
+            if my_position != last_position:
+                await interaction.edit_original_response(content=f"⏳ You're in queue position {my_position}")
+                last_position = my_position
+                
+        except StopIteration:
+            # Not in queue anymore (shouldn't happen, but just in case)
+            break
+            
         await asyncio.sleep(1)
     
+    # Get from queue and start processing (remove first item)
+    item = AIqueue.pop(0)
     isqueue = True
-    sented = await ctx.send(f"聞著我那又熱又香脆的{torch.cuda.get_device_name(0)}思考中")
+    
+    await interaction.edit_original_response(content=f"聞著我那又熱又香脆的{torch.cuda.get_device_name(0)}思考中...")
     
     try:
         # Run the blocking AI function in a separate thread
         loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(executor, ask, "/nothink /Response as traditional chinese /Response as much as possible less word but not force to do| Here is the input chat: " + question)
-        await sented.edit(content=f"{response}")
+        response = await loop.run_in_executor(
+            executor, 
+            ask, 
+            "/nothink /Response as traditional chinese /Response as much as possible less word but not force to do| Here is the input chat: " + item["question"]
+        )
+        await interaction.edit_original_response(content=f"{response}")
     except Exception as e:
-        await sented.edit(content=f"Error: {e}")
+        await interaction.edit_original_response(content=f"❌ Error: {e}")
     finally:
         isqueue = False
 
