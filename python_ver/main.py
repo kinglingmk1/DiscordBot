@@ -613,7 +613,7 @@ async def ai(ctx, *, question: str):
     try:
         # Run the blocking AI function in a separate thread
         loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(executor, ask, question)
+        response = await loop.run_in_executor(executor, ask, "/nothink /Response as traditional chinese /Response as much as possible less word but not force to do| Here is the input chat: " + question)
         await sented.edit(content=f"{response}")
     except Exception as e:
         await sented.edit(content=f"Error: {e}")
