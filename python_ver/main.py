@@ -608,25 +608,44 @@ async def help(ctx):
 AIqueue = []  # Change from queue.Queue() to list
 isqueue = False
 @client.tree.command(name="luckydraw", description="Draw a lucky stuff with customized options")
-async def luckydraw_slash(interaction: discord.Interaction, username: str,options: str):
-    #if options is > username add Empty option
-    option_list = options.split(",")
-    username_list = username.split(",")
-    while len(option_list) <= len(username_list):
-        option_list.append("Empty")
+async def luckydraw_slash(interaction: discord.Interaction, username: str, options: str):
+    await interaction.response.defer(ephemeral=False)
+    
+    # Split the input strings
+    option_list = [opt.strip() for opt in options.split(",")]
+    username_list = [user.strip() for user in username.split(",")]
+    
+    # If more users than options, add "Empty" options
+    if len(username_list) > len(option_list):
+        empty_count = len(username_list) - len(option_list)
+        for _ in range(empty_count):
+            option_list.append(f"Empty")
+    
+    # Create a copy for drawing (to avoid modifying original)
+    available_options = option_list.copy()
+    
+    # Draw results
     results = []
     for user in username_list:
-        while True:
-            choice = random.choice(option_list).strip()
-            if choice != "Empty":
-                results.append(f"{user.strip()} got: {choice}")
-                option_list.remove(choice)
-                break
-            else:
-                results.append(f"{user.strip()} got: Nothing")
-                option_list.remove(choice)
-                break
-    await interaction.response.send_message("🎉 Draw Results:\n" + "\n".join(results), ephemeral=True)
+        if available_options:
+            # Randomly pick an option
+            drawn_option = random.choice(available_options)
+            results.append(f"**{user}** → {drawn_option}")
+            # Remove the drawn option to avoid repeats
+            available_options.remove(drawn_option)
+        else:
+            # This shouldn't happen, but just in case
+            results.append(f"**{user}** → No option available")
+    
+    # Format the output
+    result_text = "Draw Results:**\n\n" + "\n".join(results)
+    
+    # If there are leftover options, show them
+    if available_options:
+        result_text += f"\n\nNot drawn:** {', '.join(available_options)}"
+    
+    await interaction.followup.send(result_text)
+
 
 
 @client.tree.command(name="ai", description="Ask a question to the AI")
