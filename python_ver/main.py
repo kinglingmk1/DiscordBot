@@ -288,7 +288,8 @@ async def play(ctx, url: str):
                             vc.stop()
                         while vc.is_playing():
                             await asyncio.sleep(1)
-                        await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=title))
+                        playMSG = "正在播放: " + title
+                        await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=playMSG))
                         vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
                     else:
                         # 下載影片
@@ -326,7 +327,8 @@ async def play(ctx, url: str):
                             vc.stop()
                         while vc.is_playing():
                             await asyncio.sleep(1)
-                        await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=title))
+                        playMSG = "正在播放: " + title
+                        await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=playMSG))
                         vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
                     
                     # 等待當前歌曲播放完畢
@@ -369,7 +371,8 @@ async def play(ctx, url: str):
                 vc = ctx.guild.voice_client
                 if vc.is_playing():
                     vc.stop()
-                await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=video_title))
+                playMSG = "正在播放: " + video_title
+                await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=playMSG))
                 vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(clean), options='-filter:a "volume=0.1"'))
                 return
 
@@ -407,7 +410,8 @@ async def play(ctx, url: str):
                 vc.stop()
             while vc.is_playing():
                 await asyncio.sleep(1)
-            await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=video_title))
+            playMSG = "正在播放: " + video_title
+            await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=playMSG))
             vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(),source=intgrated(clean),options='-filter:a "volume=0.1"'))
             
         except subprocess.CalledProcessError as e:
@@ -449,7 +453,8 @@ async def playList(ctx, *, arg):
     if(intgrated(arg_clean) is None):
         await ctx.send("> No such that song in storage.")
         return
-    await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=arg_clean))
+    playingMSG = "正在播放: " + arg_clean
+    await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=playingMSG))
     vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=intgrated(arg_clean), options='-filter:a "volume=0.1"'))
     await ctx.channel.send("> Now playing: " + removefileName(removePath(getMP3(arg_clean)))
     )
@@ -602,6 +607,27 @@ async def help(ctx):
 # Replace the queue initialization
 AIqueue = []  # Change from queue.Queue() to list
 isqueue = False
+@client.tree.command(name="luckydraw", description="Draw a lucky stuff with customized options")
+async def luckydraw_slash(interaction: discord.Interaction, username: str,options: str):
+    #if options is > username add Empty option
+    option_list = options.split(",")
+    username_list = username.split(",")
+    while len(option_list) <= len(username_list):
+        option_list.append("Empty")
+    results = []
+    for user in username_list:
+        while True:
+            choice = random.choice(option_list).strip()
+            if choice != "Empty":
+                results.append(f"{user.strip()} got: {choice}")
+                option_list.remove(choice)
+                break
+            else:
+                results.append(f"{user.strip()} got: Nothing")
+                option_list.remove(choice)
+                break
+    await interaction.response.send_message("🎉 Draw Results:\n" + "\n".join(results), ephemeral=True)
+
 
 @client.tree.command(name="ai", description="Ask a question to the AI")
 async def ai_slash(interaction: discord.Interaction, question: str):
@@ -871,3 +897,4 @@ async def on_message(message):
         return
 
     await client.process_commands(message)
+client.run("TOKEN")
