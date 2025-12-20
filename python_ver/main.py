@@ -605,55 +605,56 @@ async def help(ctx):
     await ctx.send(f"{help_text}", ephemeral=True)
 
 # Replace the queue initialization
+@client.tree.command(name="luckydraw", description="Draw a lucky stuff with customized options")
+async def luckydraw_slash(interaction: discord.Interaction, options: str):
+    #first add the options to a list splt by comma
+    option_list = options.split(",")
+    #then send a button to draw. After draw remove the draw item and disable the button if no item left
+    #print as <user> 抽到了: <item>
+    #delete the draw button message when all items drawn
+    class DrawButton(discord.ui.View):
+        def __init__(self, options):
+            super().__init__()
+            self.options = options
+
+        @discord.ui.button(label="你抽啊啊啊啊!", style=discord.ButtonStyle.primary)
+        async def draw_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not self.options:
+                await interaction.response.send_message("No items left to draw.")
+                button.disabled = True
+                await interaction.message.edit(view=self)
+                #change the button name to "抽完了啦"
+                button.label = "抽幹了啊~"
+                await interaction.message.edit(view=self)
+                return
+            drawn_item = random.choice(self.options)
+            self.options.remove(drawn_item)
+            await interaction.response.send_message(f"{interaction.user.mention} 抽到了{drawn_item}")
+            if not self.options:
+                button.disabled = True
+            await interaction.message.edit(view=self)
+    view = DrawButton(option_list)
+    await interaction.response.send_message("讓我們抽一輩子獎", view=view)
+
+
 AIqueue = []  # Change from queue.Queue() to list
 isqueue = False
-@client.tree.command(name="luckydraw", description="Draw a lucky stuff with customized options")
-async def luckydraw_slash(interaction: discord.Interaction, username: str, options: str):
-    await interaction.response.defer(ephemeral=False)
-    
-    # Split the input strings
-    option_list = [opt.strip() for opt in options.split(",")]
-    username_list = [user.strip() for user in username.split(",")]
-    
-    # If more users than options, add "Empty" options
-    if len(username_list) > len(option_list):
-        empty_count = len(username_list) - len(option_list)
-        for _ in range(empty_count):
-            option_list.append(f"Empty")
-    
-    # Create a copy for drawing (to avoid modifying original)
-    available_options = option_list.copy()
-    
-    # Draw results
-    results = []
-    for user in username_list:
-        if available_options:
-            # Randomly pick an option
-            drawn_option = random.choice(available_options)
-            results.append(f"**{user}** → {drawn_option}")
-            # Remove the drawn option to avoid repeats
-            available_options.remove(drawn_option)
-        else:
-            # This shouldn't happen, but just in case
-            results.append(f"**{user}** → No option available")
-    
-    # Format the output
-    result_text = "Draw Results:**\n\n" + "\n".join(results)
-    
-    # If there are leftover options, show them
-    if available_options:
-        result_text += f"\n\nNot drawn:** {', '.join(available_options)}"
-    
-    await interaction.followup.send(result_text)
+isOpenAI = False
+@client.tree.command(name="open-ai", description="Ask a question to the AI with public chat")
+async def open_ai(interaction: discord.Interaction, question: str):
+    global isOpenAI
+    isOpenAI = True
+    await ai_slash(interaction, question)
 
+@client.tree.command(name="ai", description="Ask a question to the AI with private chat")
+async def ai_private_slash(interaction: discord.Interaction, question: str):
+    await ai_slash(interaction, question)
 
-
-@client.tree.command(name="ai", description="Ask a question to the AI")
 async def ai_slash(interaction: discord.Interaction, question: str):
-    global isqueue, AIqueue
-    
+    global isqueue, AIqueue, isOpenAI
+    isempheral = not isOpenAI
     # Defer the response as ephemeral
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer(ephemeral=isempheral)
     
     # Add to queue - store as dictionary
     AIqueue.append({"interaction": interaction, "question": question})
@@ -662,7 +663,7 @@ async def ai_slash(interaction: discord.Interaction, question: str):
     initial_position = len(AIqueue)
     
     # Send initial ephemeral message
-    await interaction.followup.send(f"Initializing... (Position in queue: {initial_position})", ephemeral=True)
+    await interaction.followup.send(f"Initializing... (Position in queue: {initial_position})", ephemeral=isempheral)
     
     # Wait in queue - keep checking position
     last_position = initial_position
@@ -705,6 +706,7 @@ async def ai_slash(interaction: discord.Interaction, question: str):
         await interaction.edit_original_response(content=f"❌ Error: {e}")
     finally:
         isqueue = False
+        isOpenAI = False
 
 
 @client.command()
@@ -916,4 +918,3 @@ async def on_message(message):
         return
 
     await client.process_commands(message)
-client.run("TOKEN")
