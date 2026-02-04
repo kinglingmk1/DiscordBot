@@ -11,11 +11,12 @@ import asyncio
 import subprocess
 import re
 import sys
-import torch
+#import torch
 import asyncio
 import queue
 from concurrent.futures import ThreadPoolExecutor
-from Qwen import ask
+from pathlib import Path
+#from Qwen import ask
 executor = ThreadPoolExecutor(max_workers=2)
 
 intents = discord.Intents.default()
@@ -221,9 +222,70 @@ async def play(ctx, url: str):
         await ctx.send(file=discord.File(getIMGPath() + "幹嘛-CStDUUrz.webp"))
         await ctx.send("> You need to be in a voice channel.")
         return
-    if not url.startswith("https://www.youtube.com/watch") and not url.startswith("https://youtu.be/"):
+    if url.startswith("https://www.bilibili.com"):
+        directory_path = Path(mainPath() + "/music/")
+        files_list = [p for p in directory_path.iterdir() if p.is_file()]
+        if  os.name == "nt":
+            bv = url.split("/video/")[1].split("/")[0]
+            #await ctx.send(bv)
+            try:
+                process = await asyncio.create_subprocess_exec(
+                        mainPath() + "\\BBDown.exe",
+                        bv,
+                        "--audio-only",
+                        "--work-dir",
+                        mainPath() + "\\music",
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                
+                # Find files modified during/after the download (within last 60 seconds)
+                import time
+                current_time = time.time()
+                all_files = [p for p in directory_path.iterdir() if p.is_file()]
+                recent_files = [f for f in all_files if (current_time - f.stat().st_mtime) < 60]
+                
+                if recent_files:
+                    # Get the most recently modified file from recent downloads
+                    new_song = max(recent_files, key=lambda p: p.stat().st_mtime)
+                    song_path = str(new_song)
+                    
+                    # Join voice channel and play the song
+                    if ctx.author.voice is None:
+                        await ctx.send("> You need to be in a voice channel.")
+                        return
+                    
+                    if ctx.voice_client is None:
+                        await ctx.author.voice.channel.connect()
+                    
+                    vc = ctx.guild.voice_client
+                    if vc.is_playing():
+                        vc.stop()
+                    
+                    while vc.is_playing():
+                        await asyncio.sleep(1)
+                    
+                    song_name = new_song.stem
+                    await ctx.send(f"> Now Playing: {song_name}")
+                    playMSG = "正在播放: " + song_name
+                    await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=playMSG))
+                    vc.play(discord.FFmpegPCMAudio(executable=getFFMPEGPath(), source=song_path, options='-filter:a "volume=0.1"'))
+                else:
+                    await ctx.send("> Download completed but no music file found!")
+                    
+            except subprocess.CalledProcessError:
+                print("> Download failed!")
+            except Exception as e:
+                await ctx.send(f"> How the fuck u make this???? : {e}")
+                return
+        
+                
+
+        return
+    elif not url.startswith("https://www.youtube.com/watch") and not url.startswith("https://youtu.be/"):
         await playList(ctx,arg=url)
-    else:
+    else :
         if ctx.voice_client is None:
             await ctx.author.voice.channel.connect()
         if blacklist(url):
@@ -584,6 +646,72 @@ async def list(ctx):
             #await ctx.send("```Song List:\n" + "\n".join(numbered)+ "```")
     else:
         await ctx.send("No music files found.")
+@client.command()
+async def download(ctx):
+    #download a youtube link and ctx respawn with the file
+    link = ctx.message.content.split(" ")[1]
+    if not link.startswith("https://www.youtube.com/watch") and not link.startswith("https://youtu.be/"):
+        await ctx.send("> Please provide a valid YouTube link.")
+        return
+    await ctx.send("Downloading file from YouTube...")
+    try:
+        if os.name == 'nt':  # Windows
+            process = await asyncio.create_subprocess_exec(
+                mainPath() + '/yt-dlp.exe',
+                '-o', mainPath() + '/music/%(title)s.%(ext)s',
+                '-f', 'm4a',
+                link,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+        else:  # Linux/Unix
+            process = await asyncio.create_subprocess_exec(
+                mainPath() + '/yt-dlp_linux',
+                '-o', mainPath() + '/music/%(title)s.%(ext)s',
+                '-f', 'm4a',
+                link,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+        stdout, stderr = await process.communicate()
+        if process.returncode != 0:
+            if os.name == 'nt':  # Windows
+                raise subprocess.CalledProcessError(process.returncode, 'yt-dlp.exe')
+            else:  # Linux/Unix
+                raise subprocess.CalledProcessError(process.returncode, 'yt-dlp_linux')
+        await ctx.send("Download completed.")
+        # send to ctx the downloaded file
+        # Extract the filename from stdout
+        output_str = decode_subprocess_output(stdout)
+        print(output_str)
+        
+        # Try to match different yt-dlp output patterns
+        # Pattern 1: For newly downloaded files - "Destination: <path>"
+        match = re.search(r'Destination: (.+\.(?:m4a|mp3|flac|webm|opus))', output_str)
+        
+        # Pattern 2: For already downloaded files - "[download] <path> has already been downloaded"
+        if not match:
+            match = re.search(r'\[download\] (.+\.(?:m4a|mp3|flac|webm|opus)) has already been downloaded', output_str)
+        
+        # Pattern 3: Try to extract from the output file name - "[download] <path>"
+        if not match:
+            match = re.search(r'\[download\] (.+\.(?:m4a|mp3|flac|webm|opus))', output_str)
+        
+        print(match)
+        if match:
+            file_path = match.group(1).strip()
+            await ctx.send(file=discord.File(file_path))
+        else:
+            await ctx.send("> Could not determine the downloaded file name.")
+    except subprocess.CalledProcessError as e:
+        await ctx.send("> Download failed!")
+        # 檢查是否有 stderr 輸出
+        if hasattr(e, 'stderr') and e.stderr:
+            print(f"> Download failed! because: {e.stderr}")
+        else:
+            print(f"> Download failed! Return code: {e.returncode}")
+
+
 
 @client.command()
 async def help(ctx):
@@ -598,6 +726,9 @@ async def help(ctx):
         "> !help - Show this help message.\n"
         "> !play <YouTube URL> - Download and play a YouTube video.\n"
         "> /ai <any string> - Ask a question to the AI.\n"
+        "> !checkytdlp - Check and update yt-dlp to the latest version.\n"
+        "> !checkServerDown - Check if specific servers are down.\n"
+        ">>> /open-ai <any string> - Ask a question to the AI with public chat.\n"
         ">>> !hardreset - Restart the bot completely.\n"
         ">>> !playAll - Play all music files in the music directory.\n"
         "   !stop - Stop current play all song list and skip to next song\n"
@@ -651,6 +782,8 @@ async def ai_private_slash(interaction: discord.Interaction, question: str):
     await ai_slash(interaction, question)
 
 async def ai_slash(interaction: discord.Interaction, question: str):
+    await interaction.response.send_message("AI offline")
+    return
     global isqueue, AIqueue, isOpenAI
     isempheral = not isOpenAI
     # Defer the response as ephemeral
@@ -740,6 +873,7 @@ async def go(ctx):
         imgs = [
             "之前拋棄了我，現在還有臉回來-BKvy-NQ4.webp",
             "之前明明就不肯和我組樂團-CVo0-7ju.webp",
+            "我還以為妳真的死掉了-84LbzTcx.webp",
             "太棒了，爽世同學LOVE.jpg",
             "太好了-Bny2y6a-.webp",
             "太好了3.jpg",
@@ -801,7 +935,8 @@ async def stfu(ctx):
             "愛音驚訝.jpg",
             "感謝您讓我佔用的寶貴時間.jpg",
             "態度好差喔.jpg",
-            "還有這樣太不負責了吧.jpg"
+            "還有這樣太不負責了吧.jpg",
+            "我還以為妳真的死掉了-84LbzTcx.webp"
         ]
         img = random.choice(imgs)
         await ctx.send(file=discord.File(getIMGPath() + img))
@@ -813,6 +948,7 @@ async def stfu(ctx):
             "叫我嗎-Crz6Q_da.webp",
             "這種事早晚會發生的-DQBmYna4.webp",
             "這樣啊.jpg",
+            "我還以為妳真的死掉了-84LbzTcx.webp"
         ]
         img = random.choice(imgs)
         await ctx.send(file=discord.File(getIMGPath() + img))
@@ -872,6 +1008,20 @@ async def on_message(message):
         return
 
     # If message contains any variants of "Mujica"
+    if(content.lower() == "mygo"):
+        if isGo == False:
+            return
+        imgs = [
+            "我要封鎖他.jpg",
+            "我們是MyGO.jpg",
+            "我懂.jpg",
+            "愛音泡澡.jpg",
+            "愛音模糊.jpg",
+            "讓我們一起迷失吧.jpg"
+        ]
+        img = random.choice(imgs)
+        await message.channel.send(file=discord.File(getIMGPath()+img))
+        return
     if any(word in content for word in ["Mujica", "mujica", "ムヒカ", "穆希卡", "ミュヒカ","母鷄卡"]):
         if isGo == False:
             return
